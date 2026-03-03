@@ -1,0 +1,505 @@
+---
+title: Data Providers
+description: Write server-side logic to fetch and process data for your components
+---
+
+## Overview
+
+Data providers are the server-side logic of OpenComponents. They run in Node.js, fetch data from APIs or databases, process it, and pass it to your template for rendering.
+
+## The data Function
+
+Every data provider exports a `data` function with this signature:
+
+```javascript
+module.exports.data = function(context, callback) {
+  // Fetch or compute data
+  const data = { /* your data */ };
+  
+  // Pass data to template
+  callback(null, data);
+};
+```
+
+<ParamField path="context" type="object">
+  The context object containing:
+  - `params` - Component parameters from consumer
+  - `env` - Environment variables from registry
+  - `plugins` - Registered plugins
+  - `staticPath` - URL path to static assets
+  - Request headers and metadata
+</ParamField>
+
+<ParamField path="callback" type="function">
+  Node-style callback: `callback(error, data)`
+  - First argument: Error object (or `null` if successful)
+  - Second argument: Data object to pass to template
+</ParamField>
+
+## Basic Example
+
+**server.js:**
+```javascript
+'use strict';
+
+module.exports.data = function(context, callback) {
+  const firstName = context.params.firstName;
+  const lastName = context.params.lastName;
+  
+  callback(null, {
+    fullName: `${firstName} ${lastName}`,
+    greeting: `Hello, ${firstName}!`
+  });
+};
+```
+
+**template.html:**
+```handlebars
+<div class="greeting">
+  <h1>{{greeting}}</h1>
+  <p>Your full name is: {{fullName}}</p>
+</div>
+```
+
+## Real-World Examples
+
+### Example 1: Simple Parameter Handling
+
+From `test/fixtures/components/welcome-with-optional-parameters`:
+
+<CodeGroup>
+```javascript server.js
+'use strict';
+
+module.exports.data = function (context, callback) {
+  callback(null, {
+    firstName: context.params.firstName,
+    lastName: context.params.lastName,
+    nick: context.params.nick
+  });
+};
+```
+
+```json package.json
+{
+  "oc": {
+    "files": {
+      "data": "server.js"
+    },
+    "parameters": {
+      "firstName": {
+        "type": "string",
+        "mandatory": true,
+        "example": "John"
+      },
+      "lastName": {
+        "type": "string",
+        "mandatory": false,
+        "example": "Smith"
+      },
+      "nick": {
+        "type": "string",
+        "mandatory": false,
+        "default": "Johnny"
+      }
+    }
+  }
+}
+```
+</CodeGroup>
+
+### Example 2: Using Dependencies
+
+From `test/fixtures/components/lodash-component`:
+
+<CodeGroup>
+```javascript server.js
+'use strict';
+
+var isequal = require('lodash.isequal');
+
+module.exports.data = function (context, callback) {
+  callback(null, {
+    magicNumber: isequal(1, 1) ? 5 : 0
+  });
+};
+```
+
+```json package.json
+{
+  "dependencies": {
+    "lodash.isequal": ""
+  }
+}
+```
+</CodeGroup>
+
+<Info>
+The registry must be configured to allow your dependencies. Check with your registry administrator for the whitelist.
+</Info>
+
+### Example 3: Setting Custom Headers
+
+From `test/fixtures/components/hello-world-custom-headers`:
+
+```javascript
+'use strict';
+
+module.exports.data = function (context, callback) {
+  // Set custom HTTP headers
+  context.setHeader('Test-Header', 'Test-Value');
+  context.setHeader('Cache-Control', 'public max-age=3600');
+  
+  callback(null, {});
+};
+```
+
+<Tip>
+Use `context.setHeader()` to control caching, set security headers, or pass metadata to the consumer.
+</Tip>
+
+## The Context Object
+
+The `context` object provides access to request data and utilities:
+
+### context.params
+
+Access component parameters:
+
+```javascript
+module.exports.data = function(context, callback) {
+  const userId = context.params.userId;       // string
+  const showAvatar = context.params.showAvatar; // boolean
+  const maxItems = context.params.maxItems;   // number
+  
+  callback(null, { userId, showAvatar, maxItems });
+};
+```
+
+### context.env
+
+Access environment variables configured in the registry:
+
+```javascript
+module.exports.data = function(context, callback) {
+  const apiKey = context.env.API_KEY;
+  const apiUrl = context.env.API_URL;
+  
+  // Use environment variables
+  fetch(`${apiUrl}/users`, {
+    headers: { 'Authorization': `Bearer ${apiKey}` }
+  })
+  .then(res => res.json())
+  .then(data => callback(null, { users: data }))
+  .catch(callback);
+};
+```
+
+<Warning>
+Environment variables must be configured on the registry. They are not read from your component's `.env` file in production.
+</Warning>
+
+### context.plugins
+
+Access registry plugins:
+
+```javascript
+module.exports.data = function(context, callback) {
+  // Use a custom logger plugin
+  context.plugins.logger('Fetching user data');
+  
+  // Use a cache plugin
+  context.plugins.cache.get('user-123', (err, cached) => {
+    if (cached) {
+      return callback(null, cached);
+    }
+    
+    // Fetch fresh data
+    fetchUser('user-123', (err, user) => {
+      context.plugins.cache.set('user-123', user);
+      callback(null, user);
+    });
+  });
+};
+```
+
+### context.staticPath
+
+Get the URL path to your component's static assets:
+
+```javascript
+module.exports.data = function(context, callback) {
+  callback(null, {
+    logoUrl: `${context.staticPath}logo.png`,
+    cssUrl: `${context.staticPath}styles.css`
+  });
+};
+```
+
+**In template:**
+```handlebars
+<img src="{{logoUrl}}" alt="Logo" />
+<link rel="stylesheet" href="{{cssUrl}}" />
+```
+
+### context.setHeader()
+
+Set custom HTTP response headers:
+
+```javascript
+context.setHeader('Cache-Control', 'public, max-age=3600');
+context.setHeader('X-Component-Version', '1.2.3');
+```
+
+### context.setCookie()
+
+Set cookies in the response:
+
+```javascript
+module.exports.data = function(context, callback) {
+  // Simple cookie
+  context.setCookie('sessionId', 'abc123');
+  
+  // Cookie with options
+  context.setCookie('userId', 'user-456', {
+    httpOnly: true,
+    secure: true,
+    maxAge: 3600000 // 1 hour
+  });
+  
+  callback(null, {});
+};
+```
+
+## Asynchronous Operations
+
+### Callback Pattern
+
+The traditional Node.js callback pattern:
+
+```javascript
+module.exports.data = function(context, callback) {
+  fetchUserData(context.params.userId, (err, userData) => {
+    if (err) {
+      return callback(err);
+    }
+    
+    callback(null, { user: userData });
+  });
+};
+```
+
+### Promises
+
+You can use promises, but must convert to callbacks:
+
+```javascript
+module.exports.data = function(context, callback) {
+  fetchUserData(context.params.userId)
+    .then(userData => {
+      callback(null, { user: userData });
+    })
+    .catch(callback);
+};
+```
+
+### Async/Await
+
+Wrap async/await code to work with callbacks:
+
+```javascript
+module.exports.data = function(context, callback) {
+  (async () => {
+    try {
+      const userData = await fetchUserData(context.params.userId);
+      const posts = await fetchUserPosts(userData.id, context.params.maxPosts);
+      
+      callback(null, {
+        user: userData,
+        posts: posts
+      });
+    } catch (error) {
+      callback(error);
+    }
+  })();
+};
+```
+
+<Tip>
+Or use a helper to promisify the data function:
+
+```javascript
+const { promisify } = require('util');
+
+const getData = async (context) => {
+  const userData = await fetchUserData(context.params.userId);
+  const posts = await fetchUserPosts(userData.id);
+  return { user: userData, posts };
+};
+
+module.exports.data = function(context, callback) {
+  getData(context).then(
+    data => callback(null, data),
+    err => callback(err)
+  );
+};
+```
+</Tip>
+
+## Error Handling
+
+Always handle errors gracefully:
+
+```javascript
+module.exports.data = function(context, callback) {
+  const userId = context.params.userId;
+  
+  if (!userId) {
+    return callback(new Error('userId is required'));
+  }
+  
+  fetchUser(userId, (err, user) => {
+    if (err) {
+      // Log error for debugging
+      console.error('Failed to fetch user:', err);
+      
+      // Return error to framework
+      return callback(err);
+    }
+    
+    if (!user) {
+      return callback(new Error('User not found'));
+    }
+    
+    callback(null, { user });
+  });
+};
+```
+
+<Warning>
+When you pass an error to the callback, the registry returns a 500 error response instead of rendering the component.
+</Warning>
+
+## Performance Considerations
+
+### Execution Timeout
+
+Registries can configure an `executionTimeout` (in seconds). If your data function takes longer, it will be terminated:
+
+```javascript
+module.exports.data = function(context, callback) {
+  // This will timeout if it takes > executionTimeout seconds
+  slowApiCall((err, data) => {
+    callback(err, data);
+  });
+};
+```
+
+<Tip>
+- Keep data fetching fast (< 1 second ideally)
+- Use caching for expensive operations
+- Implement request timeouts in your HTTP clients
+- Consider background data sync for heavy processing
+</Tip>
+
+### Caching Strategies
+
+**Using plugins:**
+```javascript
+module.exports.data = function(context, callback) {
+  const cacheKey = `user-${context.params.userId}`;
+  
+  context.plugins.cache.get(cacheKey, (err, cached) => {
+    if (cached) {
+      return callback(null, cached);
+    }
+    
+    fetchExpensiveData((err, data) => {
+      if (!err) {
+        context.plugins.cache.set(cacheKey, data, { ttl: 300 }); // 5 min
+      }
+      callback(err, data);
+    });
+  });
+};
+```
+
+**Using HTTP cache headers:**
+```javascript
+module.exports.data = function(context, callback) {
+  // Cache component response for 1 hour
+  context.setHeader('Cache-Control', 'public, max-age=3600');
+  
+  callback(null, { /* data */ });
+};
+```
+
+## ES6 Syntax
+
+You can use modern JavaScript (ES6+) in your data providers:
+
+```javascript
+export const data = (context, callback) => {
+  const { userId, maxPosts = 10 } = context.params;
+  
+  callback(null, {
+    userId,
+    maxPosts
+  });
+};
+```
+
+<Info>
+From `test/fixtures/components/jade-filters/server.js`:
+
+```javascript
+export const data = (context, callback) => callback(null, {});
+```
+</Info>
+
+## Testing Data Providers
+
+Test your data provider in isolation:
+
+```javascript
+// test/my-component.test.js
+const { data } = require('../server');
+
+describe('my-component data provider', () => {
+  it('should return user data', (done) => {
+    const context = {
+      params: {
+        userId: 'user-123'
+      },
+      env: {},
+      plugins: {}
+    };
+    
+    data(context, (err, result) => {
+      expect(err).toBeNull();
+      expect(result.user.id).toBe('user-123');
+      done();
+    });
+  });
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Parameters" icon="sliders" href="/components/parameters">
+    Learn how to access and validate parameters
+  </Card>
+  
+  <Card title="Templates" icon="file-code" href="/components/templates">
+    Render your data in templates
+  </Card>
+  
+  <Card title="Testing" icon="flask" href="/components/testing">
+    Write tests for your data providers
+  </Card>
+  
+  <Card title="Static Assets" icon="image" href="/components/static-assets">
+    Reference static files from your data provider
+  </Card>
+</CardGroup>

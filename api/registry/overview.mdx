@@ -1,0 +1,112 @@
+---
+title: Registry API Overview
+description: Complete API reference for the OpenComponents Registry
+---
+
+The OpenComponents Registry is the core server that hosts and serves your components. It provides a simple but powerful API for starting a registry, registering plugins, and managing component lifecycle.
+
+## Import
+
+```typescript
+import registry from 'oc';
+```
+
+The default export is a factory function that creates a registry instance.
+
+## Basic Usage
+
+```typescript
+import registry from 'oc';
+
+const app = registry({
+  baseUrl: 'https://components.mycompany.com/',
+  port: 3000,
+  tempDir: './temp',
+  verbosity: 1,
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  }
+});
+
+app.start((err, data) => {
+  if (err) {
+    console.error('Failed to start registry:', err);
+    return;
+  }
+  console.log('Registry started successfully!');
+});
+```
+
+## Return Value
+
+The `registry()` function returns an object with the following methods:
+
+- `start()` - Starts the HTTP server
+- `close()` - Stops the HTTP server
+- `register()` - Registers a plugin
+- `on()` - Subscribes to registry events
+- `app` - Express application instance
+
+## Configuration
+
+The registry accepts a [RegistryOptions](/api/registry/options) object that configures all aspects of the registry behavior, including:
+
+- Storage backend configuration
+- Authentication and authorization
+- Component discovery settings
+- Plugin configuration
+- Server settings (port, timeout, etc.)
+
+## Methods
+
+See the [Methods](/api/registry/methods) page for detailed documentation of all registry methods.
+
+## Events
+
+The registry emits events during its lifecycle that you can listen to for monitoring and logging. See the [Events](/api/registry/events) page for details.
+
+## Type Safety
+
+The registry function accepts a generic type parameter for storage adapter options:
+
+```typescript
+interface MyStorageOptions {
+  bucket: string;
+  region: string;
+  componentsDir: string;
+}
+
+const app = registry<MyStorageOptions>({
+  baseUrl: 'https://components.mycompany.com/',
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  }
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Registry Options" icon="gear" href="/api/registry/options">
+    Configure your registry with RegistryOptions
+  </Card>
+  <Card title="Registry Methods" icon="code" href="/api/registry/methods">
+    Learn about start, close, register, and on methods
+  </Card>
+  <Card title="Event System" icon="bell" href="/api/registry/events">
+    Subscribe to registry lifecycle events
+  </Card>
+  <Card title="Storage Adapters" icon="database" href="/advanced/storage-adapters">
+    Configure storage backends for components
+  </Card>
+</CardGroup>

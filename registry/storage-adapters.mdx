@@ -1,0 +1,591 @@
+---
+title: Storage Adapters
+description: Configure cloud storage backends for component hosting
+---
+
+Storage adapters enable the Registry to store and retrieve components from various cloud storage services. The Registry supports S3, Google Cloud Storage, Azure Blob Storage, and custom adapters.
+
+## Overview
+
+In production, components are stored in cloud storage rather than the local filesystem. Storage adapters provide a unified interface for:
+
+- **Uploading components** during publishing
+- **Retrieving components** when serving requests
+- **Listing components** for discovery and caching
+- **Managing component versions**
+
+The Registry includes built-in support for major cloud providers and allows custom adapters for specialized storage needs.
+
+## Amazon S3
+
+### Installation
+
+Install the S3 storage adapter:
+
+```bash
+npm install oc-s3-storage-adapter
+```
+
+### Configuration
+
+There are two ways to configure S3 storage:
+
+#### Option 1: Using `storage` (Recommended)
+
+```javascript
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components',
+      // Optional: explicit credentials
+      key: process.env.AWS_ACCESS_KEY_ID,
+      secret: process.env.AWS_SECRET_ACCESS_KEY
+    }
+  }
+});
+```
+
+#### Option 2: Using `s3` shorthand
+
+```javascript
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  s3: {
+    bucket: 'my-components',
+    region: 'us-east-1',
+    componentsDir: 'components'
+  }
+});
+```
+
+The Registry automatically creates an S3 adapter from the `s3` config.
+
+### S3 Options
+
+<ParamField path="bucket" type="string" required>
+  S3 bucket name
+</ParamField>
+
+<ParamField path="region" type="string" required>
+  AWS region (e.g., `us-east-1`, `eu-west-1`)
+</ParamField>
+
+<ParamField path="componentsDir" type="string" required>
+  Directory prefix in the bucket where components are stored
+</ParamField>
+
+<ParamField path="key" type="string">
+  AWS access key ID. Uses AWS SDK default credential chain if omitted.
+</ParamField>
+
+<ParamField path="secret" type="string">
+  AWS secret access key. Uses AWS SDK default credential chain if omitted.
+</ParamField>
+
+### AWS Credentials
+
+The adapter supports multiple authentication methods:
+
+#### 1. Environment Variables (Recommended)
+
+```bash
+export AWS_ACCESS_KEY_ID=your-key-id
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+export AWS_REGION=us-east-1
+```
+
+```javascript
+const registry = oc.registry({
+  s3: {
+    bucket: 'my-components',
+    region: process.env.AWS_REGION,
+    componentsDir: 'components'
+    // Credentials loaded from environment
+  }
+});
+```
+
+#### 2. IAM Instance Profile
+
+When running on EC2, ECS, or Lambda, use IAM roles:
+
+```javascript
+const registry = oc.registry({
+  s3: {
+    bucket: 'my-components',
+    region: 'us-east-1',
+    componentsDir: 'components'
+    // Credentials loaded from instance metadata
+  }
+});
+```
+
+#### 3. Explicit Credentials
+
+```javascript
+const registry = oc.registry({
+  s3: {
+    bucket: 'my-components',
+    region: 'us-east-1',
+    componentsDir: 'components',
+    key: process.env.AWS_ACCESS_KEY_ID,
+    secret: process.env.AWS_SECRET_ACCESS_KEY
+  }
+});
+```
+
+### S3 Bucket Setup
+
+Create an S3 bucket with appropriate permissions:
+
+```bash
+aws s3 mb s3://my-components --region us-east-1
+```
+
+IAM policy for the Registry:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::my-components",
+        "arn:aws:s3:::my-components/*"
+      ]
+    }
+  ]
+}
+```
+
+### Bucket Structure
+
+Components are stored in this structure:
+
+```
+my-components/
+  components/                  (componentsDir)
+    my-component/
+      1.0.0/
+        package.json
+        template.js
+        server.js
+        static/
+          styles.css
+          script.js
+      1.0.1/
+        ...
+    another-component/
+      2.0.0/
+        ...
+```
+
+## Google Cloud Storage
+
+### Installation
+
+```bash
+npm install oc-gs-storage-adapter
+```
+
+### Configuration
+
+```javascript
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: {
+    adapter: require('oc-gs-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      projectId: 'my-gcp-project',
+      componentsDir: 'components',
+      // Optional: explicit credentials
+      keyFilename: './gcp-key.json'
+    }
+  }
+});
+```
+
+### GCS Options
+
+<ParamField path="bucket" type="string" required>
+  GCS bucket name
+</ParamField>
+
+<ParamField path="projectId" type="string" required>
+  Google Cloud project ID
+</ParamField>
+
+<ParamField path="componentsDir" type="string" required>
+  Directory prefix in the bucket
+</ParamField>
+
+<ParamField path="keyFilename" type="string">
+  Path to service account key file. Uses application default credentials if omitted.
+</ParamField>
+
+### GCS Authentication
+
+#### 1. Service Account Key
+
+```javascript
+const registry = oc.registry({
+  storage: {
+    adapter: require('oc-gs-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      projectId: 'my-project',
+      componentsDir: 'components',
+      keyFilename: './service-account-key.json'
+    }
+  }
+});
+```
+
+#### 2. Application Default Credentials
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=./service-account-key.json
+```
+
+```javascript
+const registry = oc.registry({
+  storage: {
+    adapter: require('oc-gs-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      projectId: 'my-project',
+      componentsDir: 'components'
+      // Credentials from GOOGLE_APPLICATION_CREDENTIALS
+    }
+  }
+});
+```
+
+### GCS Bucket Setup
+
+Create a bucket:
+
+```bash
+gsutil mb -p my-project -l us-east1 gs://my-components/
+```
+
+Grant permissions to the service account:
+
+```bash
+gsutil iam ch serviceAccount:registry@my-project.iam.gserviceaccount.com:objectAdmin gs://my-components
+```
+
+## Azure Blob Storage
+
+### Installation
+
+```bash
+npm install oc-azure-storage-adapter
+```
+
+### Configuration
+
+```javascript
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: {
+    adapter: require('oc-azure-storage-adapter'),
+    options: {
+      accountName: 'myaccount',
+      accountKey: process.env.AZURE_STORAGE_KEY,
+      containerName: 'components',
+      componentsDir: 'components'
+    }
+  }
+});
+```
+
+### Azure Options
+
+<ParamField path="accountName" type="string" required>
+  Azure storage account name
+</ParamField>
+
+<ParamField path="accountKey" type="string" required>
+  Azure storage account key
+</ParamField>
+
+<ParamField path="containerName" type="string" required>
+  Blob container name
+</ParamField>
+
+<ParamField path="componentsDir" type="string" required>
+  Directory prefix in the container
+</ParamField>
+
+## Custom Storage Adapters
+
+Create a custom adapter for specialized storage needs (MinIO, Cloudflare R2, local network storage, etc.).
+
+### Adapter Interface
+
+An adapter must implement the `StorageAdapter` interface:
+
+```typescript
+import type { StorageAdapter } from 'oc-storage-adapters-utils';
+
+interface StorageAdapter {
+  adapterType: string;
+  
+  getFile(filePath: string): Promise<string>;
+  getJson<T>(filePath: string, force: boolean): Promise<T>;
+  listSubDirectories(dirPath: string): Promise<string[]>;
+  putDir(dirPath: string, destPath: string): Promise<void>;
+  putFile(filePath: string, destPath: string): Promise<void>;
+  putFileContent(content: string | Buffer, filePath: string): Promise<void>;
+  getUrl(componentName: string, version: string, fileName: string): string;
+  
+  maxConcurrentRequests: number;
+}
+```
+
+### Example: Custom Adapter
+
+```javascript
+// my-storage-adapter.js
+module.exports = function createAdapter(options) {
+  return {
+    adapterType: 'my-custom-storage',
+    maxConcurrentRequests: 20,
+    
+    async getFile(filePath) {
+      // Return file contents as string
+      const response = await fetch(`${options.baseUrl}/${filePath}`);
+      return response.text();
+    },
+    
+    async getJson(filePath, force) {
+      // Return parsed JSON
+      const content = await this.getFile(filePath);
+      return JSON.parse(content);
+    },
+    
+    async listSubDirectories(dirPath) {
+      // Return array of subdirectory names
+      const response = await fetch(`${options.baseUrl}/${dirPath}?list=dirs`);
+      return response.json();
+    },
+    
+    async putDir(dirPath, destPath) {
+      // Upload entire directory
+      // Walk dirPath and upload each file to destPath
+    },
+    
+    async putFile(filePath, destPath) {
+      // Upload single file
+      const content = await fs.readFile(filePath);
+      await this.putFileContent(content, destPath);
+    },
+    
+    async putFileContent(content, filePath) {
+      // Upload content to filePath
+      await fetch(`${options.baseUrl}/${filePath}`, {
+        method: 'PUT',
+        body: content
+      });
+    },
+    
+    getUrl(componentName, version, fileName) {
+      // Return public URL for a file
+      return `${options.baseUrl}/${options.componentsDir}/${componentName}/${version}/${fileName}`;
+    }
+  };
+};
+```
+
+Use the custom adapter:
+
+```javascript
+const myAdapter = require('./my-storage-adapter');
+
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: {
+    adapter: myAdapter,
+    options: {
+      baseUrl: 'https://my-storage-service.com',
+      componentsDir: 'components'
+    }
+  }
+});
+```
+
+### Adapter Best Practices
+
+1. **Implement all methods**: The Registry calls all methods in the interface
+2. **Return Promises**: All async methods must return Promises
+3. **Handle errors**: Throw descriptive errors for debugging
+4. **Set `maxConcurrentRequests`**: Limit parallel requests to prevent rate limiting
+5. **Cache when possible**: Implement caching for frequently accessed files
+
+### Publishing Adapters
+
+To distribute your adapter:
+
+1. Create an npm package named `oc-{type}-storage-adapter`:
+
+```json
+{
+  "name": "oc-minio-storage-adapter",
+  "version": "1.0.0",
+  "main": "index.js",
+  "peerDependencies": {
+    "oc-storage-adapters-utils": "^2.0.0"
+  }
+}
+```
+
+2. Publish to npm:
+
+```bash
+npm publish
+```
+
+## Adapter Comparison
+
+| Feature | S3 | GCS | Azure | Custom |
+|---------|----|----|-------|--------|
+| Official support | ✅ | ✅ | ✅ | - |
+| Global CDN | ✅ | ✅ | ✅ | Varies |
+| Pricing | $$ | $$ | $$ | Varies |
+| Setup complexity | Low | Medium | Medium | High |
+| Performance | High | High | High | Varies |
+
+## Advanced Configuration
+
+### Custom Base URL
+
+For CDN-fronted storage:
+
+```javascript
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components',
+      // Custom CDN URL
+      path: 'https://cdn.example.com'
+    }
+  }
+});
+```
+
+Components will be served from `https://cdn.example.com/components/...`
+
+### Caching Configuration
+
+Control how often the Registry polls storage:
+
+```javascript
+const registry = oc.registry({
+  storage: { /* ... */ },
+  pollingInterval: 10,      // Poll every 10 seconds
+  refreshInterval: 60       // Refresh cache every 60 seconds
+});
+```
+
+<ParamField path="pollingInterval" type="number" default="5">
+  Seconds between each poll of storage for changes
+</ParamField>
+
+<ParamField path="refreshInterval" type="number">
+  Seconds between each refresh of the component list cache
+</ParamField>
+
+### Verbosity
+
+Enable storage adapter logging:
+
+```javascript
+const registry = oc.registry({
+  verbosity: 1, // Enables adapter logging
+  storage: { /* ... */ }
+});
+```
+
+## Troubleshooting
+
+### "Storage adapter not found"
+
+```
+Error: Cannot find module 'oc-s3-storage-adapter'
+```
+
+Install the adapter:
+
+```bash
+npm install oc-s3-storage-adapter
+```
+
+### "Access denied"
+
+```
+Error: Access Denied
+```
+
+Verify IAM permissions:
+- S3: Check bucket policy and IAM role
+- GCS: Check service account permissions
+- Azure: Verify account key and container access
+
+### "Component not found"
+
+```
+Error: Component not found
+```
+
+Check:
+1. `componentsDir` is correctly configured
+2. Components exist in storage at the expected path
+3. Storage credentials are valid
+4. Network connectivity to storage service
+
+### Legacy Adapter Warning
+
+```
+DeprecationWarning: Adapters now should work with promises
+```
+
+Upgrade to a newer adapter version:
+
+```bash
+npm install oc-s3-storage-adapter@latest
+```
+
+The Registry automatically converts legacy callback-based adapters to promises.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/registry/configuration">
+    Explore all configuration options
+  </Card>
+  <Card title="Authentication" icon="lock" href="/registry/authentication">
+    Secure component publishing
+  </Card>
+  <Card title="Middleware" icon="code" href="/registry/middleware">
+    Extend Registry behavior
+  </Card>
+  <Card title="Events" icon="bolt" href="/registry/events">
+    Monitor storage events
+  </Card>
+</CardGroup>

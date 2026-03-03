@@ -1,0 +1,264 @@
+---
+title: oc preview
+description: Preview a component in a test page
+---
+
+The `preview` command opens a component in a test page in your default browser. It's useful for manually testing components during development.
+
+## Usage
+
+```bash
+oc preview <componentHref>
+```
+
+## Arguments
+
+### `componentHref` (required)
+
+The full URL to the component you want to preview, including any parameters.
+
+- Must be a complete HTTP/HTTPS URL
+- Can include query parameters for testing different component states
+- Should point to a running registry (local or remote)
+
+## Examples
+
+### Preview a local component
+
+```bash
+oc preview "http://localhost:3000/my-component"
+```
+
+Opens the component served from your local dev registry.
+
+### Preview with version
+
+```bash
+oc preview "http://localhost:3000/my-component/1.0.0"
+```
+
+Previews a specific version of the component.
+
+### Preview with parameters
+
+```bash
+oc preview "http://localhost:3000/my-component?name=Arthur&title=Hello"
+```
+
+Tests the component with specific parameter values.
+
+### Preview from production registry
+
+```bash
+oc preview "http://registry.example.com/header/2.1.0?variant=dark"
+```
+
+Previews a component from a production registry.
+
+### Complex parameter example
+
+```bash
+oc preview "http://localhost:3000/my-new-component/1.0.0/?param1=hello&name=Arthur&items=1,2,3"
+```
+
+## How It Works
+
+1. The command takes the component URL
+2. Wraps it in a test page template
+3. Opens the test page in your default web browser
+4. The test page renders the component using the OpenComponents client
+
+## Test Page Features
+
+The preview page typically includes:
+
+- Component rendering area
+- Component metadata display
+- Parameter information
+- Error handling and debugging info
+- Browser console logging
+
+## URL Format
+
+The component URL should follow this format:
+
+```
+http[s]://[registry-url]/[component-name]/[version]/?[parameters]
+```
+
+### URL Components
+
+- **protocol** - `http://` or `https://`
+- **registry-url** - Domain and port of the registry
+- **component-name** - Name of the component
+- **version** (optional) - Specific version (omit for latest)
+- **parameters** (optional) - Query string parameters
+
+## Common Workflows
+
+### Development workflow
+
+```bash
+# Terminal 1: Start dev server
+oc dev ./components 3000
+
+# Terminal 2: Preview component
+oc preview "http://localhost:3000/header"
+```
+
+### Testing with different parameters
+
+```bash
+# Test default state
+oc preview "http://localhost:3000/button"
+
+# Test disabled state
+oc preview "http://localhost:3000/button?disabled=true"
+
+# Test with custom text
+oc preview "http://localhost:3000/button?text=Click%20Me&variant=primary"
+```
+
+### Testing different versions
+
+```bash
+# Preview latest version
+oc preview "http://localhost:3000/my-component"
+
+# Preview specific version
+oc preview "http://localhost:3000/my-component/1.0.0"
+
+# Preview different version
+oc preview "http://localhost:3000/my-component/2.0.0"
+```
+
+## Browser Compatibility Testing
+
+To test in different browsers, you can:
+
+1. Use the preview command to open in default browser
+2. Copy the URL from browser address bar
+3. Open in other browsers for cross-browser testing
+
+## URL Encoding
+
+For parameters with special characters, use URL encoding:
+
+```bash
+oc preview "http://localhost:3000/component?text=Hello%20World&email=user%40example.com"
+```
+
+Or use quotes to avoid shell interpretation:
+
+```bash
+oc preview "http://localhost:3000/component?text=Hello World&tags=important,urgent"
+```
+
+## Debugging with Preview
+
+The preview page is useful for:
+
+- Visual inspection of component rendering
+- Testing parameter handling
+- Checking responsive behavior
+- Inspecting network requests in browser DevTools
+- Debugging client-side JavaScript
+- Testing error states
+
+### Example debugging workflow
+
+```bash
+# Preview component
+oc preview "http://localhost:3000/my-component"
+
+# Then in browser DevTools:
+# - Check console for errors
+# - Inspect network tab for requests
+# - Use React/Vue DevTools if applicable
+# - Test responsive design with device emulation
+```
+
+## Error Handling
+
+### Invalid URL
+
+```bash
+Error: Invalid component URL
+```
+
+Make sure the URL is complete and properly formatted.
+
+### Registry not running
+
+If the browser shows a connection error, verify:
+
+1. The registry is running (`oc dev` or production registry is up)
+2. The URL is correct
+3. The port is not blocked by firewall
+
+### Component not found
+
+```
+404 - Component not found
+```
+
+In the browser, verify:
+
+1. Component name is spelled correctly
+2. Component exists in the registry
+3. Version exists (if specified)
+
+### Component render errors
+
+If the component fails to render:
+
+1. Check browser console for JavaScript errors
+2. Verify component parameters are valid
+3. Check network tab for failed requests
+4. Review component server-side logs
+
+## Tips
+
+1. **Use quotes** - Always wrap the URL in quotes to avoid shell interpretation
+2. **Check DevTools** - Open browser DevTools for detailed debugging
+3. **Test parameters** - Try different parameter combinations
+4. **Mobile testing** - Use browser DevTools device emulation for mobile testing
+5. **Network throttling** - Test component loading under slow connections
+
+## Alternative Testing Methods
+
+Besides the preview command, you can:
+
+### Direct browser access
+
+Navigate directly to the component URL:
+
+```
+http://localhost:3000/my-component
+```
+
+### Embed in test page
+
+Create a custom HTML page that embeds the component:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="http://localhost:3000/oc-client/client.js"></script>
+</head>
+<body>
+  <oc-component href="http://localhost:3000/my-component"></oc-component>
+</body>
+</html>
+```
+
+### Integration tests
+
+Use the component in your application for real-world testing.
+
+## Related Commands
+
+- [**dev**](/cli/dev) - Start a development server for your components
+- [**validate**](/cli/validate) - Validate component structure and configuration
+- [**package**](/cli/package) - Package component for deployment

@@ -1,0 +1,335 @@
+---
+title: oc publish
+description: Publish a component to an OpenComponents registry
+---
+
+The `publish` command packages and publishes a component to one or more OpenComponents registries. It handles authentication, packaging, compression, and upload.
+
+## Usage
+
+```bash
+oc publish <componentPath> [options]
+```
+
+## Arguments
+
+### `componentPath` (required)
+
+The path to the component directory to publish.
+
+- Must contain a valid `package.json` with OpenComponents metadata
+- Can be a relative or absolute path
+
+## Options
+
+### `--username`
+
+Username for registry authentication.
+
+- **Type:** String
+- **Example:** `--username=john.doe`
+
+If not provided and the registry requires authentication, you'll be prompted to enter it interactively.
+
+### `--password`
+
+Password for registry authentication.
+
+- **Type:** String
+- **Example:** `--password=secretpass`
+
+If not provided and the registry requires authentication, you'll be prompted to enter it interactively (hidden input).
+
+### `--token`
+
+Authentication token for registry authentication.
+
+- **Type:** String
+- **Example:** `--token=abc123xyz`
+
+Use token authentication instead of username/password. Takes precedence over username/password if both are provided.
+
+### `--skipPackage`
+
+Skip the packaging step and publish an existing package.
+
+- **Type:** Boolean
+- **Default:** `false`
+- **Example:** `--skipPackage`
+
+Useful when the component is already packaged and you just want to publish it.
+
+### `--registries`
+
+List of registry URLs to publish to.
+
+- **Type:** Array
+- **Example:** `--registries=http://registry1.com/ --registries=http://registry2.com/`
+
+Overrides the registries defined in `oc.json`. Allows publishing to specific registries without modifying the configuration file.
+
+### `--dryRun`
+
+Simulate the publish process without actually publishing.
+
+- **Type:** Boolean
+- **Default:** `false`
+- **Example:** `--dryRun`
+
+Validates the component and shows what would be published without making changes to the registry.
+
+## Examples
+
+### Basic publish
+
+```bash
+oc publish my-component/
+```
+
+Packages and publishes the component to registries defined in `oc.json`.
+
+### Publish with credentials
+
+```bash
+oc publish my-component/ --username=john --password=secret
+```
+
+### Publish with token authentication
+
+```bash
+oc publish my-component/ --token=abc123xyz789
+```
+
+### Publish to specific registries
+
+```bash
+oc publish my-component/ --registries=http://staging-registry.com/
+```
+
+### Publish multiple registries
+
+```bash
+oc publish my-component/ --registries=http://registry1.com/ --registries=http://registry2.com/
+```
+
+### Dry run
+
+```bash
+oc publish my-component/ --dryRun
+```
+
+Validates without publishing.
+
+### Skip packaging (publish existing package)
+
+```bash
+oc publish my-component/ --skipPackage
+```
+
+Publishes the existing `_package` directory without repackaging.
+
+## Output
+
+### Successful publish
+
+```bash
+$ oc publish my-component/
+
+Packaging "/path/to/my-component/_package"...
+Compressing to "/path/to/my-component/package.tar.gz"...
+Publishing to http://registry.example.com/my-component/1.0.0...
+✓ Published to http://registry.example.com/my-component/1.0.0
+```
+
+### With authentication prompt
+
+```bash
+$ oc publish my-component/
+
+Packaging "/path/to/my-component/_package"...
+Compressing to "/path/to/my-component/package.tar.gz"...
+Publishing to http://registry.example.com/my-component/1.0.0...
+Registry requires authentication
+Enter username: john.doe
+Enter password: ********
+✓ Using provided credentials
+✓ Published to http://registry.example.com/my-component/1.0.0
+```
+
+### Dry run output
+
+```bash
+$ oc publish my-component/ --dryRun
+
+Packaging "/path/to/my-component/_package"...
+Compressing to "/path/to/my-component/package.tar.gz"...
+Publishing to http://registry.example.com/my-component/1.0.0?dryRun...
+✓ [DRY RUN] Would publish to http://registry.example.com/my-component/1.0.0
+```
+
+## Registry Configuration
+
+The publish command reads registry URLs from `oc.json`:
+
+```json
+{
+  "registries": [
+    "http://registry.example.com/"
+  ]
+}
+```
+
+### Adding registries
+
+Use the [registry add](/cli/registry) command:
+
+```bash
+oc registry add http://registry.example.com/
+```
+
+## Authentication
+
+### Interactive authentication
+
+If credentials aren't provided and the registry requires authentication:
+
+1. You'll be prompted for username
+2. You'll be prompted for password (hidden input)
+3. Credentials are used for the current publish only (not stored)
+
+### Token authentication
+
+Preferred for CI/CD environments:
+
+```bash
+oc publish my-component/ --token=$REGISTRY_TOKEN
+```
+
+### Username/password authentication
+
+```bash
+oc publish my-component/ --username=$REGISTRY_USER --password=$REGISTRY_PASS
+```
+
+## Publishing Workflow
+
+1. **Package** - Component is packaged (unless `--skipPackage` is used)
+2. **Compress** - Package is compressed to `.tar.gz`
+3. **Authenticate** - Credentials are verified with registry
+4. **Upload** - Compressed package is uploaded to each registry
+5. **Verify** - Registry confirms successful publish
+6. **Cleanup** - Temporary files are removed
+
+## Error Handling
+
+### Authentication errors
+
+```bash
+Error: Unauthorized
+Invalid credentials
+```
+
+Verify your username/password or token.
+
+### Version conflict
+
+```bash
+Error: Component "my-component" version "1.0.0" already exists
+```
+
+Update the version in your `package.json` before publishing.
+
+### Network errors
+
+```bash
+Error: Failed to connect to registry
+ECONNREFUSED: Connection refused
+```
+
+Verify the registry URL and network connectivity.
+
+### Invalid package
+
+```bash
+Error: Component validation failed
+```
+
+Run `oc validate my-component/` to see specific validation errors.
+
+### CLI version mismatch
+
+```bash
+Error: OC CLI version needs to be upgraded
+Please upgrade to version 1.2.3 or later: npm install -g oc@1.2.3
+```
+
+Upgrade your CLI:
+
+```bash
+npm install -g oc@1.2.3
+```
+
+### Node.js version mismatch
+
+```bash
+Error: Node.js version needs to be upgraded
+Registry requires Node.js >= 18
+```
+
+Upgrade Node.js to meet the registry requirements.
+
+### Missing _package directory
+
+```bash
+Error: Package folder missing
+```
+
+Don't use `--skipPackage` if the component hasn't been packaged yet.
+
+## CI/CD Integration
+
+### GitHub Actions example
+
+```yaml
+name: Publish Component
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+      - run: npm install -g oc
+      - run: oc publish ./my-component --token=${{ secrets.OC_REGISTRY_TOKEN }}
+```
+
+### Environment variables
+
+Set credentials as environment variables:
+
+```bash
+export OC_REGISTRY_TOKEN="your-token-here"
+oc publish my-component/ --token=$OC_REGISTRY_TOKEN
+```
+
+## Best Practices
+
+1. **Use semantic versioning** - Follow semver for component versions
+2. **Test before publishing** - Use `--dryRun` to validate
+3. **Use tokens in CI/CD** - Avoid storing passwords in scripts
+4. **Validate first** - Run `oc validate` before publishing
+5. **Version control** - Commit changes before publishing
+6. **Document changes** - Update changelogs with each version
+
+## Related Commands
+
+- [**package**](/cli/package) - Package a component without publishing
+- [**validate**](/cli/validate) - Validate a component before publishing
+- [**registry**](/cli/registry) - Manage registry configurations
+- [**dev**](/cli/dev) - Test components locally before publishing

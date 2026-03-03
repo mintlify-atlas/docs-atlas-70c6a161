@@ -1,0 +1,372 @@
+---
+title: oc clean
+description: Remove node_modules directories from component subfolders
+---
+
+The `clean` command removes `node_modules` directories from each component's subfolder. This is useful for cleaning up dependencies, reducing disk space, or preparing for a fresh install.
+
+## Usage
+
+```bash
+oc clean <dirPath> [options]
+```
+
+## Arguments
+
+### `dirPath` (required)
+
+The directory containing components to clean.
+
+- The CLI will scan this directory for all component subdirectories
+- Each component's `node_modules` folder will be removed
+- Can be a relative or absolute path
+
+## Options
+
+### `--yes`
+
+Skip all confirmation prompts and automatically confirm deletion.
+
+- **Type:** Boolean
+- **Default:** `false`
+- **Example:** `--yes`
+
+Useful for automation and CI/CD pipelines where interactive prompts are not possible.
+
+## Examples
+
+### Basic usage with confirmation
+
+```bash
+oc clean components
+```
+
+This will prompt you to confirm before deleting each `node_modules` directory.
+
+### Skip confirmation prompts
+
+```bash
+oc clean components --yes
+```
+
+Automatically confirms and removes all `node_modules` directories without asking.
+
+### Clean current directory
+
+```bash
+oc clean .
+```
+
+Cleans components in the current directory.
+
+### Clean absolute path
+
+```bash
+oc clean /path/to/my/components
+```
+
+## Output
+
+### With confirmation prompts (default)
+
+```bash
+$ oc clean components
+
+Found 3 components:
+├── header
+├── footer
+└── navigation
+
+Remove node_modules from "header"? (y/n): y
+✓ Removed node_modules from header
+
+Remove node_modules from "footer"? (y/n): y
+✓ Removed node_modules from footer
+
+Remove node_modules from "navigation"? (y/n): n
+Skipped navigation
+
+✓ Cleaned 2 of 3 components
+```
+
+### With --yes flag
+
+```bash
+$ oc clean components --yes
+
+Found 3 components:
+├── header
+├── footer
+└── navigation
+
+✓ Removed node_modules from header
+✓ Removed node_modules from footer
+✓ Removed node_modules from navigation
+
+✓ Cleaned 3 components
+```
+
+## What Gets Removed
+
+The clean command removes:
+
+- `node_modules/` - All installed npm dependencies
+- `_package/` - Packaged component directories (if present)
+- `package.tar.gz` - Compressed packages (if present)
+
+### Directory structure before cleaning
+
+```
+components/
+├── header/
+│   ├── node_modules/     # Will be removed
+│   ├── _package/          # Will be removed
+│   ├── package.tar.gz     # Will be removed
+│   ├── package.json
+│   ├── server.js
+│   └── template.html
+└── footer/
+    ├── node_modules/      # Will be removed
+    ├── package.json
+    └── ...
+```
+
+### Directory structure after cleaning
+
+```
+components/
+├── header/
+│   ├── package.json
+│   ├── server.js
+│   └── template.html
+└── footer/
+    ├── package.json
+    └── ...
+```
+
+## Common Use Cases
+
+### Before publishing components
+
+```bash
+# Clean old dependencies
+oc clean ./components --yes
+
+# Fresh install
+cd components/header
+npm install
+
+# Package and publish
+oc package ./components/header
+oc publish ./components/header
+```
+
+### Disk space management
+
+```bash
+# Check disk space
+du -sh components/*/node_modules
+
+# Clean to free space
+oc clean components --yes
+```
+
+### Troubleshooting dependency issues
+
+```bash
+# Remove potentially corrupted dependencies
+oc clean components --yes
+
+# Reinstall from scratch
+for dir in components/*/; do
+  cd "$dir"
+  npm install
+  cd -
+done
+```
+
+### CI/CD pipelines
+
+```bash
+#!/bin/bash
+# Clean before building
+oc clean ./components --yes
+
+# Install fresh dependencies
+oc dev ./components
+```
+
+## Error Handling
+
+### Directory not found
+
+```bash
+Error: Directory "components" does not exist
+```
+
+Verify the path is correct.
+
+### No components found
+
+```bash
+Warning: No components found in directory
+```
+
+The directory doesn't contain any component subdirectories.
+
+### Permission errors
+
+```bash
+Error: Permission denied removing node_modules from "header"
+```
+
+You may need elevated permissions:
+
+```bash
+sudo oc clean components --yes
+```
+
+Or fix permissions:
+
+```bash
+chmod -R u+w components/
+oc clean components --yes
+```
+
+### Partial cleanup
+
+If some components fail to clean:
+
+```bash
+✓ Removed node_modules from header
+✗ Failed to remove node_modules from footer: EBUSY
+✓ Removed node_modules from navigation
+
+Partially cleaned 2 of 3 components
+```
+
+Close any programs using the files and try again.
+
+## Safety Considerations
+
+### Confirmation prompts
+
+By default, the command asks for confirmation before deleting. This prevents accidental deletion:
+
+```bash
+oc clean components
+# Will prompt for each component
+```
+
+### Use --yes carefully
+
+The `--yes` flag bypasses all confirmations:
+
+```bash
+oc clean components --yes
+# No prompts, immediate deletion
+```
+
+Only use `--yes` when you're certain you want to delete all `node_modules` directories.
+
+## Reinstalling Dependencies
+
+After cleaning, you'll need to reinstall dependencies:
+
+### For a single component
+
+```bash
+cd components/header
+npm install
+```
+
+### For all components
+
+```bash
+for dir in components/*/; do
+  (cd "$dir" && npm install)
+done
+```
+
+### Using OC dev
+
+The `dev` command automatically installs dependencies:
+
+```bash
+oc clean components --yes
+oc dev components 3000
+# Dependencies are automatically installed during dev startup
+```
+
+## Performance Tips
+
+1. **Use --yes in scripts** - Avoid interactive prompts in automation
+2. **Clean before archiving** - Reduce backup size by cleaning first
+3. **Clean unused components** - Remove dependencies from components you're not working on
+4. **Regular cleaning** - Periodically clean to prevent stale dependencies
+
+## Disk Space Savings
+
+Cleaning can significantly reduce disk usage:
+
+```bash
+# Before cleaning
+$ du -sh components
+245M    components
+
+# After cleaning
+$ oc clean components --yes
+$ du -sh components
+12M     components
+```
+
+A typical component's `node_modules` can be 50-100MB or more.
+
+## Alternative Methods
+
+### Manual removal
+
+```bash
+find components -name "node_modules" -type d -exec rm -rf {} +
+```
+
+### Remove specific component
+
+```bash
+rm -rf components/header/node_modules
+```
+
+### Clean with npm
+
+Inside a component directory:
+
+```bash
+cd components/header
+npm ci --ignore-scripts
+```
+
+## Best Practices
+
+1. **Clean before publishing** - Ensure clean state before packaging
+2. **Don't commit node_modules** - Add to `.gitignore`
+3. **Use --yes in automation** - Non-interactive scripts require --yes
+4. **Document dependencies** - Keep `package.json` up to date
+5. **Clean regularly** - Prevent accumulation of outdated dependencies
+
+## Gitignore Configuration
+
+Add these patterns to `.gitignore`:
+
+```
+node_modules/
+_package/
+package.tar.gz
+```
+
+This prevents committing files that `clean` removes.
+
+## Related Commands
+
+- [**dev**](/cli/dev) - Development server that automatically installs dependencies
+- [**package**](/cli/package) - Package command that handles dependencies
+- [**publish**](/cli/publish) - Publish command that manages component packaging

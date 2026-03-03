@@ -1,0 +1,452 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for OpenComponents
+---
+
+This guide covers common issues you might encounter when working with OpenComponents and how to resolve them.
+
+## Installation Issues
+
+<Accordion title="npm install fails with permission errors">
+**Problem:** Getting EACCES or permission denied errors during installation.
+
+**Solution:**
+```bash
+# Option 1: Use nvm (recommended)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install 18
+nvm use 18
+npm install -g oc-cli
+
+# Option 2: Fix npm permissions
+mkdir ~/.npm-global
+npm config set prefix '~/.npm-global'
+export PATH=~/.npm-global/bin:$PATH
+
+# Option 3: Use npx (no global install)
+npx oc-cli --version
+```
+</Accordion>
+
+<Accordion title="Wrong Node.js version">
+**Problem:** OpenComponents requires Node.js 18 or higher.
+
+**Solution:**
+```bash
+# Check your Node version
+node --version
+
+# Install Node 18+ using nvm
+nvm install 18
+nvm use 18
+nvm alias default 18
+
+# Verify installation
+node --version
+npm --version
+```
+</Accordion>
+
+## Component Development
+
+<Accordion title="Component fails to package">
+**Problem:** `oc package` command fails with errors.
+
+**Solution:**
+
+1. **Check package.json validity:**
+```bash
+# Ensure package.json is valid JSON
+cat package.json | jq .
+```
+
+2. **Verify template is installed:**
+```bash
+# Install the template locally
+npm install oc-template-react --save-dev
+# or
+npm install oc-template-es6 --save-dev
+```
+
+3. **Check for dependency issues:**
+```bash
+# Clear and reinstall dependencies
+rm -rf node_modules package-lock.json
+npm install
+```
+
+4. **Validate component structure:**
+```bash
+oc validate .
+```
+</Accordion>
+
+<Accordion title="oc dev not working on Windows">
+**Problem:** File watching breaks when modifying files on Windows.
+
+**Solution:**
+
+This was fixed in [#899](https://github.com/opencomponents/oc/pull/899). Update to the latest version:
+
+```bash
+npm install -g oc-cli@latest
+```
+
+If issues persist, use polling mode:
+```bash
+oc dev . --polling
+```
+</Accordion>
+
+<Accordion title="Hot reloading not working">
+**Problem:** Changes don't trigger component reload during development.
+
+**Solution:**
+
+1. **Enable hot reloading explicitly:**
+```bash
+oc dev . --hotReloading true
+```
+
+2. **Check file watching:**
+```bash
+# Use polling for network drives or Docker
+oc dev . --polling
+```
+
+3. **Verify you're editing the right files:**
+- Changes to `package.json`, template files, or `server.js` should trigger reload
+- Temporary files are ignored automatically
+</Accordion>
+
+<Accordion title="Cannot find module errors">
+**Problem:** Component throws "Cannot find module" during development or after publishing.
+
+**Solution:**
+
+1. **Ensure dependencies are in package.json:**
+```json
+{
+  "dependencies": {
+    "axios": "^1.0.0",
+    "lodash": "^4.17.0"
+  }
+}
+```
+
+2. **Don't skip dependency packaging:**
+```bash
+# Wrong - skips dependencies
+oc package . --skip-dependencies
+
+# Correct - includes dependencies
+oc package .
+```
+
+3. **Check for scoped packages:**
+Scoped packages (`@org/package`) are supported since v0.48.17. Update if using an older version.
+</Accordion>
+
+## Registry Issues
+
+<Accordion title="Registry won't start">
+**Problem:** Registry fails to start with configuration errors.
+
+**Solution:**
+
+1. **Validate storage configuration:**
+```js
+const registry = new Registry({
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'your-bucket-name',
+      region: 'us-east-1',
+      key: 'AWS_KEY',
+      secret: 'AWS_SECRET'
+    }
+  }
+});
+```
+
+2. **Check port availability:**
+```bash
+# Check if port is in use
+lsof -i :3000
+
+# Use a different port
+registry.start({ port: 3001 });
+```
+
+3. **Verify template installation:**
+```bash
+npm install oc-template-react oc-template-es6 --save
+```
+</Accordion>
+
+<Accordion title="Components not appearing in registry">
+**Problem:** Published components don't show in the registry UI.
+
+**Solution:**
+
+1. **Check component was published successfully:**
+```bash
+oc publish my-component --verbose
+```
+
+2. **Verify storage adapter:**
+```bash
+# List components in storage
+aws s3 ls s3://your-bucket/components/
+```
+
+3. **Clear registry cache:**
+```js
+// In your registry configuration
+const registry = new Registry({
+  pollingInterval: 5, // seconds between cache refreshes
+  // ...
+});
+```
+</Accordion>
+
+<Accordion title="CORS errors when consuming components">
+**Problem:** Browser console shows CORS errors.
+
+**Solution:**
+
+1. **Enable CORS in registry:**
+```js
+const registry = new Registry({
+  // ... other config
+});
+
+registry.on('start', (app) => {
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    next();
+  });
+});
+```
+
+2. **Use server-side rendering:**
+```js
+// Render on server to avoid CORS
+const oc = require('oc-client');
+const client = new oc.Client({ registries: ['http://registry.com'] });
+
+app.get('/page', async (req, res) => {
+  const component = await client.renderComponent('my-component');
+  res.send(component.html);
+});
+```
+</Accordion>
+
+## Publishing Issues
+
+<Accordion title="Authentication failures">
+**Problem:** Cannot publish due to authentication errors.
+
+**Solution:**
+
+1. **Check credentials:**
+```bash
+# List saved registries
+oc registry ls
+
+# Remove old credentials
+oc registry remove http://registry.com
+
+# Re-authenticate
+oc registry add http://registry.com
+```
+
+2. **Verify registry URL:**
+```bash
+# Ensure trailing slash is handled
+oc registry add http://registry.com/
+# or
+oc registry add http://registry.com
+```
+
+3. **Use explicit registry:**
+```bash
+oc publish . http://registry.com --username admin --password secret
+```
+</Accordion>
+
+<Accordion title="Package size too large">
+**Problem:** Component package exceeds size limits.
+
+**Solution:**
+
+1. **Check what's being packaged:**
+```bash
+oc package .
+tar -tzf _package/*.tar.gz | head -20
+```
+
+2. **Exclude unnecessary files:**
+
+Create `.npmignore` in component root:
+```
+node_modules/
+*.test.js
+*.spec.js
+.git/
+.idea/
+*.md
+tests/
+```
+
+3. **Optimize dependencies:**
+```bash
+# Use exact versions
+npm install axios@1.2.3 --save-exact
+
+# Remove unused dependencies
+npm prune
+```
+</Accordion>
+
+<Accordion title="Version conflicts">
+**Problem:** "Component version already exists" error.
+
+**Solution:**
+
+1. **Increment version:**
+```bash
+# In component directory
+npm version patch
+oc publish .
+```
+
+2. **Check remote versions:**
+```bash
+curl http://registry.com/my-component
+```
+
+3. **Use semantic versioning:**
+```bash
+npm version patch  # 1.0.0 -> 1.0.1 (bugfix)
+npm version minor  # 1.0.1 -> 1.1.0 (feature)
+npm version major  # 1.1.0 -> 2.0.0 (breaking)
+```
+</Accordion>
+
+## Runtime Issues
+
+<Accordion title="Component rendering errors">
+**Problem:** Component fails to render with 500 errors.
+
+**Solution:**
+
+1. **Check server.js for errors:**
+```js
+// Add error handling
+module.exports.data = async (context, callback) => {
+  try {
+    const data = await fetchData();
+    callback(null, data);
+  } catch (error) {
+    callback(error.message);
+  }
+};
+```
+
+2. **Enable verbose logging:**
+```bash
+DEBUG=oc:* node server.js
+```
+
+3. **Test component locally:**
+```bash
+oc dev .
+# Visit http://localhost:3000/my-component
+```
+</Accordion>
+
+<Accordion title="Memory leaks">
+**Problem:** Registry or components consuming too much memory.
+
+**Solution:**
+
+1. **Monitor memory usage:**
+```bash
+# Check Node memory
+node --max-old-space-size=4096 server.js
+```
+
+2. **Review component cleanup:**
+```js
+// Clean up event listeners
+module.exports.data = (context, callback) => {
+  const listener = () => { /* ... */ };
+  
+  // Bad - listener never removed
+  emitter.on('event', listener);
+  
+  // Good - cleanup
+  emitter.once('event', listener);
+};
+```
+
+3. **Optimize caching:**
+```js
+const registry = new Registry({
+  pollingInterval: 30, // Reduce polling frequency
+  timeout: 5, // Lower timeout
+});
+```
+</Accordion>
+
+## Performance Issues
+
+<Accordion title="Slow component loading">
+**Problem:** Components take too long to load.
+
+**Solution:**
+
+1. **Enable CDN caching:**
+```js
+const registry = new Registry({
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      path: '//cdn.example.com/' // Use CDN URL
+    }
+  }
+});
+```
+
+2. **Use preload:**
+```html
+<!-- Preload component resources -->
+<link rel="preload" href="//cdn.com/my-component/1.0.0/static.js" as="script">
+```
+
+3. **Implement lazy loading:**
+```js
+oc.renderComponent('my-component', {
+  lazy: true,
+  lazyAfter: 1000 // Load after 1 second
+});
+```
+</Accordion>
+
+## Still Having Issues?
+
+If you can't find a solution here:
+
+1. **Search GitHub Issues:** [github.com/opencomponents/oc/issues](https://github.com/opencomponents/oc/issues)
+2. **Join the Chat:** [gitter.im/opentable/oc](https://gitter.im/opentable/oc)
+3. **Open a New Issue:** [Create Issue](https://github.com/opencomponents/oc/issues/new)
+4. **Check the Docs:** [opencomponents.github.io/docs](https://opencomponents.github.io/docs)
+
+## Related Resources
+
+- [Migration Guide](/resources/migration-guide) - Upgrading between versions
+- [Contributing](/resources/contributing) - How to contribute fixes
+- [Changelog](/resources/changelog) - Version history

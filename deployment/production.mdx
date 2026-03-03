@@ -1,0 +1,506 @@
+---
+title: Production Checklist
+description: Essential steps and best practices for deploying OpenComponents to production
+---
+
+Before deploying your OpenComponents registry to production, review this checklist to ensure a secure, performant, and reliable deployment.
+
+## Pre-Deployment Checklist
+
+### 1. Configuration Review
+
+<Steps>
+  <Step title="Verify Base URL">
+    Ensure `baseUrl` matches your production domain and includes the prefix:
+    
+    ```typescript
+    const registry = oc.Registry({
+      baseUrl: 'https://components.mycompany.com/',
+      prefix: '/' // Must be included in baseUrl
+    });
+    ```
+    
+    <Warning>
+    Incorrect `baseUrl` will cause components to fail loading in production.
+    </Warning>
+  </Step>
+
+  <Step title="Configure Storage">
+    Set up production storage (S3 recommended):
+    
+    ```typescript
+    const registry = oc.Registry({
+      s3: {
+        bucket: process.env.S3_BUCKET,
+        region: process.env.AWS_REGION,
+        componentsDir: 'components'
+        // key and secret optional with IAM roles
+      }
+    });
+    ```
+    
+    <Note>
+    Use IAM roles instead of access keys when deploying to EC2/ECS/EKS.
+    </Note>
+  </Step>
+
+  <Step title="Enable Publishing Authentication">
+    Protect your registry from unauthorized publishes:
+    
+    ```typescript
+    const registry = oc.Registry({
+      publishAuth: {
+        type: 'basic',
+        username: 'admin',
+        password: process.env.PUBLISH_PASSWORD
+      }
+    });
+    ```
+    
+    <Tip>
+    Store credentials in environment variables, never in code.
+    </Tip>
+  </Step>
+
+  <Step title="Set Production Environment Variables">
+    Configure runtime environment variables for components:
+    
+    ```typescript
+    const registry = oc.Registry({
+      env: {
+        NODE_ENV: 'production',
+        API_URL: process.env.API_URL,
+        CDN_URL: process.env.CDN_URL
+      }
+    });
+    ```
+  </Step>
+
+  <Step title="Configure Timeouts">
+    Set appropriate timeouts for production workloads:
+    
+    ```typescript
+    const registry = oc.Registry({
+      timeout: 120000,        // 2 minutes HTTP timeout
+      executionTimeout: 5,    // 5 seconds component execution
+      keepAliveTimeout: 5000  // 5 seconds keep-alive
+    });
+    ```
+  </Step>
+
+  <Step title="Review Discovery Settings">
+    Configure discovery based on your use case:
+    
+    ```typescript
+    // Public registry
+    const registry = oc.Registry({
+      discovery: {
+        ui: true,
+        api: true,
+        experimental: false,  // Hide experimental in production
+        validate: true,       // Enable API validation
+        robots: true          // Allow search engines
+      }
+    });
+    
+    // Private registry
+    const registry = oc.Registry({
+      discovery: {
+        ui: true,
+        api: true,
+        experimental: true,
+        validate: true,
+        robots: false  // Prevent search engine indexing
+      }
+    });
+    ```
+  </Step>
+</Steps>
+
+### 2. Security Hardening
+
+<AccordionGroup>
+  <Accordion title="Environment Variables" icon="lock">
+    Never commit sensitive values to version control:
+    
+    ```bash
+    # .env file (add to .gitignore)
+    S3_BUCKET=my-components-bucket
+    AWS_REGION=us-east-1
+    PUBLISH_PASSWORD=strong-random-password
+    API_URL=https://api.mycompany.com
+    ```
+    
+    Load environment variables:
+    
+    ```javascript
+    require('dotenv').config();
+    const oc = require('oc');
+    
+    const registry = oc.Registry({
+      // Use process.env for all sensitive values
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Custom Publish Validation" icon="shield-check">
+    Implement custom validation to enforce component standards:
+    
+    ```typescript
+    const registry = oc.Registry({
+      publishValidation: (packageJson, context) => {
+        // Enforce naming conventions
+        if (!packageJson.name.match(/^@mycompany\//)) {
+          return {
+            isValid: false,
+            error: 'Components must be scoped under @mycompany/'
+          };
+        }
+        
+        // Require specific metadata
+        if (!packageJson.author) {
+          return {
+            isValid: false,
+            error: 'Author information is required'
+          };
+        }
+        
+        // Validate user permissions (if available)
+        const user = context.user; // From authentication
+        if (user && !isAuthorized(user, packageJson.name)) {
+          return {
+            isValid: false,
+            error: `User ${user} not authorized to publish this component`
+          };
+        }
+        
+        return { isValid: true };
+      }
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Network Security" icon="network-wired">
+    Implement network-level security:
+    
+    - Use HTTPS/TLS for all connections
+    - Configure firewalls to restrict access
+    - Use VPC/private subnets for internal registries
+    - Enable CORS only for trusted domains
+    - Consider API gateway for rate limiting
+  </Accordion>
+
+  <Accordion title="IAM Roles (AWS)" icon="aws">
+    Use IAM roles instead of access keys:
+    
+    ```typescript
+    // No need for key/secret when using IAM roles
+    const registry = oc.Registry({
+      s3: {
+        bucket: 'my-components-bucket',
+        region: 'us-east-1',
+        componentsDir: 'components'
+        // key and secret omitted - uses IAM role
+      }
+    });
+    ```
+    
+    Required IAM permissions:
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:ListBucket"
+          ],
+          "Resource": [
+            "arn:aws:s3:::my-components-bucket/*",
+            "arn:aws:s3:::my-components-bucket"
+          ]
+        }
+      ]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### 3. Performance Optimization
+
+<CardGroup cols={2}>
+  <Card title="Caching Strategy" icon="bolt">
+    Configure polling and refresh intervals:
+    
+    ```typescript
+    const registry = oc.Registry({
+      // Poll storage every 10 seconds
+      pollingInterval: 10,
+      
+      // Refresh component cache every 60 seconds
+      refreshInterval: 60
+    });
+    ```
+    
+    **Recommendations:**
+    - High-frequency updates: `pollingInterval: 5`
+    - Cost-optimized: `pollingInterval: 30`
+    - Balance: `pollingInterval: 10`
+  </Card>
+
+  <Card title="Request Limits" icon="gauge">
+    Set payload size limits for publish requests:
+    
+    ```typescript
+    const registry = oc.Registry({
+      // Limit component package size
+      postRequestPayloadSize: '10mb'
+    });
+    ```
+  </Card>
+
+  <Card title="Component Dependencies" icon="cube">
+    Declare available dependencies to reduce bundle sizes:
+    
+    ```typescript
+    const registry = oc.Registry({
+      dependencies: [
+        'lodash',
+        'moment',
+        'react',
+        'axios'
+      ]
+    });
+    ```
+    
+    Components can use these without bundling them.
+  </Card>
+
+  <Card title="Execution Timeout" icon="clock">
+    Prevent long-running components:
+    
+    ```typescript
+    const registry = oc.Registry({
+      // Kill component after 5 seconds
+      executionTimeout: 5
+    });
+    ```
+  </Card>
+</CardGroup>
+
+### 4. Monitoring & Logging
+
+<Steps>
+  <Step title="Enable Verbose Logging">
+    ```typescript
+    const registry = oc.Registry({
+      verbosity: 1 // Enable detailed logging
+    });
+    ```
+  </Step>
+
+  <Step title="Listen to Registry Events">
+    ```typescript
+    registry.on('start', (data) => {
+      console.log('Registry started successfully');
+      // Send to monitoring service
+    });
+    
+    registry.on('error', (error) => {
+      console.error('Registry error:', error);
+      // Alert on-call engineer
+      // Log to error tracking service (e.g., Sentry)
+    });
+    
+    registry.on('request', (data) => {
+      // Log request metrics
+    });
+    ```
+  </Step>
+
+  <Step title="Implement Health Checks">
+    ```typescript
+    const express = require('express');
+    const app = express();
+    
+    // Health check endpoint
+    app.get('/health', (req, res) => {
+      res.status(200).json({ status: 'healthy' });
+    });
+    
+    // Custom routes before registry
+    const registry = oc.Registry({ /* ... */ });
+    registry.start((err, { app: registryApp }) => {
+      if (err) {
+        console.error('Failed to start:', err);
+        process.exit(1);
+      }
+    });
+    ```
+  </Step>
+
+  <Step title="Monitor Key Metrics">
+    Track these metrics in production:
+    
+    - Component render times
+    - Storage API latency
+    - Error rates by component
+    - Cache hit/miss ratios
+    - Active component versions
+    - HTTP response times
+    - Memory and CPU usage
+  </Step>
+</Steps>
+
+### 5. High Availability
+
+<Accordion title="Load Balancing">
+  Run multiple registry instances behind a load balancer:
+  
+  - All instances share the same S3 storage
+  - Use sticky sessions if components maintain state (not recommended)
+  - Implement health checks for automatic failover
+  - Consider multi-region deployment for global availability
+</Accordion>
+
+<Accordion title="Fallback Registry">
+  Configure a fallback registry for redundancy:
+  
+  ```typescript
+  const registry = oc.Registry({
+    fallbackRegistryUrl: 'https://backup-registry.mycompany.com/'
+  });
+  ```
+  
+  If a component isn't found locally, the registry queries the fallback.
+</Accordion>
+
+<Accordion title="Graceful Shutdown">
+  Implement graceful shutdown:
+  
+  ```javascript
+  const registry = oc.Registry({ /* ... */ });
+  
+  registry.start((err) => {
+    if (err) {
+      console.error('Failed to start:', err);
+      process.exit(1);
+    }
+  });
+  
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    registry.close((err) => {
+      if (err) {
+        console.error('Error during shutdown:', err);
+        process.exit(1);
+      }
+      console.log('Registry closed successfully');
+      process.exit(0);
+    });
+  });
+  ```
+</Accordion>
+
+## Production Example
+
+Complete production-ready configuration:
+
+```typescript registry.js
+require('dotenv').config();
+const oc = require('oc');
+
+const registry = oc.Registry({
+  // Public URL
+  baseUrl: process.env.BASE_URL,
+  prefix: '/',
+  
+  // Storage
+  s3: {
+    bucket: process.env.S3_BUCKET,
+    region: process.env.AWS_REGION,
+    componentsDir: 'components'
+  },
+  
+  // Security
+  publishAuth: {
+    type: 'basic',
+    username: process.env.PUBLISH_USERNAME,
+    password: process.env.PUBLISH_PASSWORD
+  },
+  
+  publishValidation: (packageJson, context) => {
+    if (!packageJson.name.startsWith('@mycompany/')) {
+      return {
+        isValid: false,
+        error: 'Components must be scoped under @mycompany/'
+      };
+    }
+    return { isValid: true };
+  },
+  
+  // Performance
+  timeout: 120000,
+  executionTimeout: 5,
+  keepAliveTimeout: 5000,
+  pollingInterval: 10,
+  refreshInterval: 60,
+  postRequestPayloadSize: '10mb',
+  
+  // Dependencies
+  dependencies: ['lodash', 'moment', 'axios'],
+  
+  // Environment
+  env: {
+    NODE_ENV: 'production',
+    API_URL: process.env.API_URL
+  },
+  
+  // Discovery
+  discovery: {
+    ui: true,
+    api: true,
+    experimental: false,
+    validate: true,
+    robots: true
+  },
+  
+  // Logging
+  verbosity: 1
+});
+
+// Event handlers
+registry.on('error', (error) => {
+  console.error('Registry error:', error);
+});
+
+// Start registry
+registry.start((err, { app, server }) => {
+  if (err) {
+    console.error('Failed to start registry:', err);
+    process.exit(1);
+  }
+  
+  console.log('Registry started successfully');
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('Shutting down gracefully');
+  registry.close(() => process.exit(0));
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AWS Deployment" icon="aws" href="/deployment/aws">
+    Deploy to AWS with detailed S3 configuration
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/deployment/docker">
+    Containerize your registry for any platform
+  </Card>
+</CardGroup>

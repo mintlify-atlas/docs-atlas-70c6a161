@@ -1,0 +1,459 @@
+---
+title: 'Programmatic API'
+description: 'Use OpenComponents programmatically in your Node.js applications'
+icon: 'code-branch'
+---
+
+## Overview
+
+The OpenComponents programmatic API allows you to integrate OC functionality directly into your Node.js applications without using the CLI. This is useful for custom workflows, automation, and integration with existing tooling.
+
+## Exports
+
+OpenComponents exports three main modules (from `src/index.ts:1-6`):
+
+```typescript
+export { default as Client } from 'oc-client';
+export { default as cli } from './cli/programmatic-api';
+export { default as Registry, RegistryOptions } from './registry';
+
+export type { Plugin, PluginContext } from './types';
+```
+
+<ParamField path="Registry" type="function">
+  Create and configure a registry instance
+</ParamField>
+
+<ParamField path="Client" type="class">
+  Client for consuming components from a registry
+</ParamField>
+
+<ParamField path="cli" type="object">
+  Programmatic access to CLI commands
+</ParamField>
+
+## Registry API
+
+### Creating a Registry
+
+```typescript
+import { Registry } from 'oc';
+
+const registry = Registry({
+  baseUrl: 'https://components.example.com/',
+  port: 3000,
+  local: false,
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  },
+  verbosity: 1
+});
+```
+
+### Registry Methods
+
+<ParamField path="start" type="function">
+  Start the registry server
+  
+  ```typescript
+  registry.start((err, { app, server }) => {
+    if (err) {
+      console.error('Failed to start:', err);
+      return;
+    }
+    console.log('Registry running');
+  });
+  ```
+</ParamField>
+
+<ParamField path="register" type="function">
+  Register a plugin with the registry
+  
+  ```typescript
+  registry.register(myPlugin, (error) => {
+    if (error) {
+      console.error('Plugin registration failed:', error);
+    }
+  });
+  ```
+</ParamField>
+
+<ParamField path="close" type="function">
+  Shut down the registry server
+  
+  ```typescript
+  registry.close((err) => {
+    if (err) {
+      console.error('Error closing registry:', err);
+    }
+  });
+  ```
+</ParamField>
+
+<ParamField path="on" type="function">
+  Listen to registry events
+  
+  ```typescript
+  registry.on('start', (data) => {
+    console.log('Registry started');
+  });
+  
+  registry.on('error', (error) => {
+    console.error('Registry error:', error);
+  });
+  
+  registry.on('request', (data) => {
+    console.log('Component requested:', data);
+  });
+  ```
+</ParamField>
+
+<ParamField path="app" type="Express.Application">
+  Access the underlying Express application
+  
+  ```typescript
+  const expressApp = registry.app;
+  ```
+</ParamField>
+
+## CLI Programmatic API
+
+The CLI provides programmatic access to all commands (from `src/cli/programmatic-api.ts:1-141`):
+
+### Development Server
+
+```typescript
+import { cli } from 'oc';
+
+cli.dev(
+  {
+    dirPath: './components',
+    port: 3000,
+    baseUrl: 'http://localhost:3000/',
+    hotReloading: true,
+    logger: {
+      log: (msg) => console.log(msg),
+      err: (msg) => console.error(msg),
+      ok: (msg) => console.log(msg),
+      warn: (msg) => console.warn(msg)
+    }
+  },
+  (err, registry) => {
+    if (err) {
+      console.error('Dev server failed:', err);
+      return;
+    }
+    console.log('Dev server running');
+  }
+);
+```
+
+### Initialize Component
+
+```typescript
+import { cli } from 'oc';
+
+cli.init(
+  {
+    componentName: 'my-component',
+    templateType: 'oc-template-es6',
+    logger: myLogger
+  },
+  (err) => {
+    if (err) {
+      console.error('Init failed:', err);
+      return;
+    }
+    console.log('Component initialized');
+  }
+);
+```
+
+### Package Component
+
+```typescript
+import { cli } from 'oc';
+
+cli.package(
+  {
+    componentPath: './my-component',
+    minify: true,
+    logger: myLogger
+  },
+  (err) => {
+    if (err) {
+      console.error('Packaging failed:', err);
+      return;
+    }
+    console.log('Component packaged successfully');
+  }
+);
+```
+
+### Publish Component
+
+```typescript
+import { cli } from 'oc';
+
+cli.publish(
+  {
+    componentPath: './my-component',
+    registry: 'https://components.example.com/',
+    username: 'user',
+    password: 'pass',
+    logger: myLogger
+  },
+  (err, result) => {
+    if (err) {
+      console.error('Publish failed:', err);
+      return;
+    }
+    console.log('Published:', result);
+  }
+);
+```
+
+### Preview Component
+
+```typescript
+import { cli } from 'oc';
+
+cli.preview(
+  {
+    componentPath: './my-component',
+    port: 3030,
+    logger: myLogger
+  },
+  (err) => {
+    if (err) {
+      console.error('Preview failed:', err);
+      return;
+    }
+    console.log('Preview server running');
+  }
+);
+```
+
+### Mock Plugin
+
+```typescript
+import { cli } from 'oc';
+
+cli.mock(
+  {
+    targetType: 'plugin',
+    targetName: 'myPlugin',
+    targetValue: { name: 'myPlugin' },
+    logger: myLogger
+  },
+  (err) => {
+    if (err) {
+      console.error('Mock failed:', err);
+      return;
+    }
+    console.log('Plugin mocked');
+  }
+);
+```
+
+### Registry Management
+
+```typescript
+import { cli } from 'oc';
+
+// Add registry
+cli.registry.add(
+  {
+    registry: 'https://components.example.com/',
+    logger: myLogger
+  },
+  (err) => {
+    if (err) {
+      console.error('Failed to add registry:', err);
+      return;
+    }
+    console.log('Registry added');
+  }
+);
+
+// List registries
+cli.registry.ls(
+  {
+    logger: myLogger
+  },
+  (err, registries) => {
+    if (err) {
+      console.error('Failed to list registries:', err);
+      return;
+    }
+    console.log('Registries:', registries);
+  }
+);
+
+// Remove registry
+cli.registry.remove(
+  {
+    registry: 'https://components.example.com/',
+    logger: myLogger
+  },
+  (err) => {
+    if (err) {
+      console.error('Failed to remove registry:', err);
+      return;
+    }
+    console.log('Registry removed');
+  }
+);
+```
+
+## Logger Interface
+
+All CLI functions require a logger object:
+
+```typescript
+interface Logger {
+  log: (message: string) => void;
+  err: (message: string) => void;
+  ok: (message: string) => void;
+  warn: (message: string) => void;
+}
+```
+
+Example logger implementation:
+
+```typescript
+const logger = {
+  log: (msg: string) => console.log(`[LOG] ${msg}`),
+  err: (msg: string) => console.error(`[ERR] ${msg}`),
+  ok: (msg: string) => console.log(`[OK] ${msg}`),
+  warn: (msg: string) => console.warn(`[WARN] ${msg}`)
+};
+```
+
+## Client API
+
+The Client API allows you to render components:
+
+```typescript
+import { Client } from 'oc';
+
+const client = new Client({
+  registries: ['https://components.example.com/'],
+  components: {
+    'my-component': '~1.0.0'
+  }
+});
+
+// Render component
+client.renderComponent(
+  'my-component',
+  { name: 'World' },
+  (err, html) => {
+    if (err) {
+      console.error('Render failed:', err);
+      return;
+    }
+    console.log('HTML:', html);
+  }
+);
+```
+
+## Complete Example
+
+Here's a complete example that starts a registry and publishes a component:
+
+```typescript
+import { Registry, cli } from 'oc';
+
+const logger = {
+  log: (msg: string) => console.log(msg),
+  err: (msg: string) => console.error(msg),
+  ok: (msg: string) => console.log(msg),
+  warn: (msg: string) => console.warn(msg)
+};
+
+// Start registry
+const registry = Registry({
+  baseUrl: 'http://localhost:3000/',
+  port: 3000,
+  local: true,
+  path: './components',
+  verbosity: 1
+});
+
+registry.start((err, { app, server }) => {
+  if (err) {
+    console.error('Registry failed to start:', err);
+    return;
+  }
+  
+  console.log('Registry started at http://localhost:3000');
+  
+  // Package and publish component
+  cli.package(
+    {
+      componentPath: './my-component',
+      minify: false,
+      logger
+    },
+    (err) => {
+      if (err) {
+        console.error('Packaging failed:', err);
+        return;
+      }
+      
+      cli.publish(
+        {
+          componentPath: './my-component',
+          registry: 'http://localhost:3000/',
+          logger
+        },
+        (err, result) => {
+          if (err) {
+            console.error('Publish failed:', err);
+            return;
+          }
+          console.log('Component published:', result);
+        }
+      );
+    }
+  );
+});
+```
+
+## TypeScript Support
+
+OpenComponents includes TypeScript definitions:
+
+```typescript
+import { Registry, RegistryOptions, Plugin, PluginContext } from 'oc';
+
+const options: RegistryOptions = {
+  baseUrl: 'https://components.example.com/',
+  port: 3000
+};
+
+const registry = Registry(options);
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Registry Configuration" icon="server" href="/registry/configuration">
+    Full registry configuration options
+  </Card>
+  <Card title="Plugins" icon="plug" href="/advanced/plugins">
+    Create and register plugins
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/cli/commands">
+    Command-line interface reference
+  </Card>
+  <Card title="Client Library" icon="browser" href="/client/usage">
+    Client-side component rendering
+  </Card>
+</CardGroup>

@@ -1,0 +1,118 @@
+---
+title: oc init
+description: Create a new empty component from a template
+---
+
+The `init` command creates a new empty component in the specified directory using a template type.
+
+## Usage
+
+```bash
+oc init <componentPath> [templateType]
+```
+
+## Arguments
+
+### `componentPath` (required)
+
+The path where the component should be created. Can be a relative or absolute path.
+
+- If the path is relative, it will be created relative to the current working directory
+- The component name will be derived from the final directory name in the path
+
+### `templateType` (optional)
+
+The template type to use for the component.
+
+- **Default:** `oc-template-es6`
+- **Available templates:**
+  - `oc-template-es6` - Modern ES6+ JavaScript template
+  - `oc-template-handlebars` - Handlebars template
+  - `oc-template-jade` - Jade/Pug template
+
+## Examples
+
+### Create a component with default template
+
+```bash
+oc init my-component
+```
+
+This creates a new component named `my-component` in the current directory using the `oc-template-es6` template.
+
+### Create a component with Handlebars template
+
+```bash
+oc init test-component oc-template-handlebars
+```
+
+Creates a component using the Handlebars template engine.
+
+### Create a component in a subdirectory
+
+```bash
+oc init components/header oc-template-es6
+```
+
+Creates a component named `header` in the `components/` subdirectory.
+
+## Output
+
+When successful, the command creates a component directory with:
+
+- `package.json` - Component metadata and dependencies
+- `server.js` - Server-side logic
+- `template.html` (or `.hbs`, `.jade`) - Component template
+- `static/` - Directory for static assets
+
+### Example Output
+
+```bash
+$ oc init my-component oc-template-es6
+
+✓ Component "my-component" created at /path/to/my-component
+```
+
+## Error Handling
+
+The command will fail if:
+
+- The component name is not valid (contains invalid characters)
+- The template type is not valid or not installed
+- A component already exists at the specified path
+- You don't have write permissions in the target directory
+
+### Common Errors
+
+**Invalid component name:**
+
+```bash
+$ oc init My-Component
+Error: Component name not valid
+```
+
+Component names must be lowercase and follow npm package naming conventions.
+
+**Invalid template type:**
+
+```bash
+$ oc init my-component invalid-template
+Error: Template type "invalid-template" is not valid
+```
+
+Make sure the template package is installed globally or in your project.
+
+## Next Steps
+
+After creating a component:
+
+1. Navigate to the component directory: `cd my-component`
+2. Install dependencies: `npm install`
+3. Start the development server: `oc dev . 3000`
+4. Open the component in your browser: `http://localhost:3000/my-component`
+
+## Related Commands
+
+- [**dev**](/cli/dev) - Start a development server to test your component
+- [**package**](/cli/package) - Package the component for distribution
+- [**publish**](/cli/publish) - Publish the component to a registry

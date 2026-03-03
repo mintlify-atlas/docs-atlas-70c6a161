@@ -1,80 +1,474 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Create, develop, and publish your first OpenComponents component in minutes
 ---
 
-## Get started in three steps
+## Get Started in 5 Minutes
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will walk you through creating your first OpenComponents component from scratch. By the end, you'll have a working component running on a local registry.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Make sure you have **Node.js 18 or higher** installed before proceeding.
 </Note>
+
+## Installation
+
+First, install the OpenComponents CLI globally:
+
+<CodeGroup>
+```bash npm
+npm install -g oc
+```
+
+```bash yarn
+yarn global add oc
+```
+
+```bash pnpm
+pnpm add -g oc
+```
+</CodeGroup>
+
+Verify the installation:
+
+```bash
+oc --version
+```
+
+## Create Your First Component
+
+<Steps>
+  <Step title="Initialize a new component">
+    Create a new component using the `oc init` command. This will scaffold a complete component with all necessary files.
+
+    ```bash
+    oc init hello-world oc-template-es6
+    ```
+
+    <Tip>
+      The `oc-template-es6` template uses modern JavaScript (ES6+). Other available templates include:
+      - `oc-template-handlebars` - For simple templating
+      - `oc-template-jade` - For Jade/Pug templates
+      - Custom templates for React, Vue, etc.
+    </Tip>
+
+    This creates a directory structure like:
+
+    ```
+    hello-world/
+    ├── package.json
+    ├── server.js      # Server-side data fetching logic
+    ├── template.js    # Client-side rendering template
+    └── package.json   # Component metadata
+    ```
+  </Step>
+
+  <Step title="Explore the component structure">
+    Navigate into your component directory:
+
+    ```bash
+    cd hello-world
+    ```
+
+    Open `package.json` to see the component metadata:
+
+    ```json package.json
+    {
+      "name": "hello-world",
+      "version": "1.0.0",
+      "description": "My first OpenComponents component",
+      "oc": {
+        "parameters": {
+          "name": {
+            "type": "string",
+            "mandatory": false,
+            "example": "World",
+            "description": "Name to greet"
+          }
+        }
+      },
+      "devDependencies": {
+        "oc-template-es6-compiler": "^7.1.2"
+      },
+      "scripts": {
+        "start": "oc dev .. --components hello-world",
+        "build": "oc package ."
+      }
+    }
+    ```
+
+    The `oc.parameters` section defines the inputs your component accepts.
+  </Step>
+
+  <Step title="Add server-side logic">
+    The `server.js` file handles data fetching on the server. This runs in Node.js before rendering:
+
+    ```javascript server.js
+    export const data = (context, callback) => {
+      // Access parameters passed to the component
+      const name = context.params.name || 'World';
+      
+      // You can fetch data from APIs, databases, etc.
+      // For now, we'll just return static data
+      callback(null, {
+        greeting: `Hello, ${name}!`,
+        timestamp: new Date().toISOString()
+      });
+    };
+    ```
+
+    <Info>
+      The server-side logic has access to:
+      - `context.params` - Component parameters
+      - `context.env` - Environment variables
+      - `context.plugins` - Registered plugins
+      - `context.request` - HTTP request details
+    </Info>
+  </Step>
+
+  <Step title="Create the view template">
+    The `template.js` file defines how your component renders in the browser:
+
+    ```javascript template.js
+    export default function(model) {
+      return `
+        <div class="hello-world">
+          <h1>${model.greeting}</h1>
+          <p>Rendered at: ${model.timestamp}</p>
+        </div>
+      `;
+    }
+    ```
+
+    You can also add styles (CSS) and client-side JavaScript if needed.
+  </Step>
+</Steps>
+
+## Start the Development Server
+
+Now let's run your component on a local registry:
+
+<Steps>
+  <Step title="Start the dev registry">
+    From your component's parent directory, run:
+
+    ```bash
+    cd ..
+    oc dev . 3000
+    ```
+
+    You'll see output like:
+
+    ```
+    Scanning components...
+    OK
+    ├── hello-world
+    Packaging components...
+    Registry started at http://localhost:3000/
+    Registry serving 1 components for a total of 1 releases.
+    ```
+
+    <Tip>
+      The dev server includes:
+      - **Hot reloading** - Changes are automatically detected
+      - **Live preview** - Interactive component browser
+      - **Debug tools** - Detailed error messages
+    </Tip>
+  </Step>
+
+  <Step title="Open the component browser">
+    Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
+
+    You'll see the OpenComponents registry interface listing all available components.
+  </Step>
+
+  <Step title="Preview your component">
+    Click on `hello-world` to see:
+    - Component documentation
+    - Available parameters
+    - Live preview
+    - Usage examples
+
+    Try the component with different parameters:
+    ```
+    http://localhost:3000/hello-world/1.0.0?name=OpenComponents
+    ```
+  </Step>
+</Steps>
+
+## Consume Your Component
+
+There are multiple ways to consume your component:
+
+<Tabs>
+  <Tab title="Browser (oc-client)">
+    Include the OpenComponents client library and render your component:
+
+    ```html
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>My App</title>
+    </head>
+    <body>
+      <div id="component-container"></div>
+
+      <script src="http://localhost:3000/oc-client/client.js"></script>
+      <script>
+        const client = new oc.Client({
+          registries: ['http://localhost:3000']
+        });
+
+        client.renderComponent('hello-world', {
+          name: 'OpenComponents'
+        }, (error, html) => {
+          if (error) {
+            console.error(error);
+          } else {
+            document.getElementById('component-container').innerHTML = html;
+          }
+        });
+      </script>
+    </body>
+    </html>
+    ```
+  </Tab>
+
+  <Tab title="Server-Side (Node.js)">
+    Use the OpenComponents client in your Node.js application:
+
+    ```javascript
+    import Client from 'oc-client';
+
+    const client = new Client({
+      registries: ['http://localhost:3000']
+    });
+
+    // Render component to HTML string
+    client.renderComponent('hello-world', {
+      name: 'OpenComponents'
+    }, (error, html) => {
+      if (error) {
+        console.error('Error rendering component:', error);
+      } else {
+        console.log(html);
+        // Inject html into your response
+      }
+    });
+    ```
+  </Tab>
+
+  <Tab title="Direct HTTP">
+    Components are served as HTTP endpoints. Make a simple GET request:
+
+    ```bash
+    curl "http://localhost:3000/hello-world/1.0.0?name=OpenComponents"
+    ```
+
+    Or use it as an iframe:
+
+    ```html
+    <iframe src="http://localhost:3000/hello-world/1.0.0?name=OpenComponents"></iframe>
+    ```
+  </Tab>
+</Tabs>
+
+## Make Changes with Hot Reloading
+
+With the dev server running, try making changes:
+
+<Steps>
+  <Step title="Edit the template">
+    Open `hello-world/template.js` and modify the output:
+
+    ```javascript template.js
+    export default function(model) {
+      return `
+        <div class="hello-world" style="padding: 20px; background: #f0f0f0;">
+          <h1 style="color: #0066cc;">${model.greeting}</h1>
+          <p><small>Rendered at: ${model.timestamp}</small></p>
+          <button onclick="alert('Hello from OpenComponents!')">Click me!</button>
+        </div>
+      `;
+    }
+    ```
+  </Step>
+
+  <Step title="Watch automatic refresh">
+    The dev server detects changes and automatically:
+    - Recompiles your component
+    - Refreshes the preview page
+    - Shows any compilation errors
+
+    <Info>
+      Hot reloading is enabled by default. You can disable it with:
+      ```bash
+      oc dev . 3000 --hotReloading=false
+      ```
+    </Info>
+  </Step>
+</Steps>
+
+## Package Your Component
+
+Before publishing, you can package your component to test the production build:
+
+```bash
+cd hello-world
+oc package .
+```
+
+This creates a `_package` directory with the compiled, production-ready component:
+
+```
+hello-world/
+├── _package/
+│   ├── package.json
+│   ├── server.js
+│   ├── template.js
+│   └── ...
+```
+
+<Warning>
+  The `_package` directory is automatically generated. Never edit files inside it - edit the source files instead.
+</Warning>
+
+## Publish to a Registry
+
+To share your component with others, publish it to an OpenComponents registry.
+
+<Steps>
+  <Step title="Add a registry">
+    First, configure the registry URL:
+
+    ```bash
+    oc registry add http://my-registry.com
+    ```
+
+    View configured registries:
+
+    ```bash
+    oc registry ls
+    ```
+  </Step>
+
+  <Step title="Publish the component">
+    Publish your component:
+
+    ```bash
+    oc publish hello-world/
+    ```
+
+    If the registry requires authentication:
+
+    ```bash
+    oc publish hello-world/ --username myuser --password mypass
+    ```
+
+    <Tip>
+      You can also use environment variables or a `.env` file for credentials:
+      ```bash
+      export OC_REGISTRY_USERNAME=myuser
+      export OC_REGISTRY_PASSWORD=mypass
+      ```
+    </Tip>
+  </Step>
+
+  <Step title="Test dry run">
+    To validate your component without actually publishing:
+
+    ```bash
+    oc publish hello-world/ --dryRun
+    ```
+
+    This checks for:
+    - Package validation errors
+    - Registry compatibility
+    - Authentication issues
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation Guide" icon="download" href="/installation">
+    Set up a production registry and configure your environment
+  </Card>
+  
+  <Card title="Component Structure" icon="code" href="/components/component-structure">
+    Learn about parameters, server-side logic, and advanced features
+  </Card>
+  
+  <Card title="Registry Setup" icon="server" href="/registry/setup">
+    Deploy and configure your own OpenComponents registry
+  </Card>
+  
+  <Card title="Templates" icon="paint-brush" href="/components/templates">
+    Explore different template types for React, Vue, and more
+  </Card>
+</CardGroup>
+
+## Common Commands Reference
+
+<Accordion title="CLI Command Cheat Sheet">
+  ```bash
+  # Create a new component
+  oc init <name> [template]
+
+  # Start local development server
+  oc dev <dir> [port] [baseUrl]
+
+  # Package a component
+  oc package <componentPath>
+
+  # Publish a component
+  oc publish <componentPath>
+
+  # Preview a component
+  oc preview <componentHref>
+
+  # Validate without publishing
+  oc validate <componentPath>
+
+  # Manage registries
+  oc registry add <url>
+  oc registry ls
+  oc registry remove <url>
+
+  # Mock plugins for local development
+  oc mock plugin <name> <value>
+  ```
+</Accordion>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port already in use">
+    If port 3000 is already in use, specify a different port:
+    ```bash
+    oc dev . 3001
+    ```
+  </Accordion>
+
+  <Accordion title="Component not found">
+    Make sure you're running `oc dev` from the parent directory of your components, not from inside a component directory.
+  </Accordion>
+
+  <Accordion title="Compilation errors">
+    Check the console output for detailed error messages. The dev server shows:
+    - Syntax errors
+    - Missing dependencies
+    - Template compilation issues
+  </Accordion>
+
+  <Accordion title="Hot reloading not working">
+    Ensure the `--watch` flag is enabled (it's on by default):
+    ```bash
+    oc dev . 3000 --watch=true
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Info>
+  Need help? Join the [OpenComponents community on Gitter](https://gitter.im/opentable/oc) or check the [troubleshooting guide](https://github.com/opencomponents/oc/blob/master/CONTRIBUTING.md#troubleshooting).
+</Info>

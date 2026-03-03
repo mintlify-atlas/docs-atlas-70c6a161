@@ -1,0 +1,330 @@
+---
+title: Creating Components
+description: Learn how to create your first OpenComponent from scratch
+---
+
+## Overview
+
+OpenComponents allows you to create reusable, isolated front-end components that can be consumed across different applications. Each component can contain server-side logic, templates, styles, and client-side JavaScript.
+
+## Quick Start
+
+### Initialize a New Component
+
+The fastest way to create a new component is using the `oc init` command:
+
+```bash
+oc init <component-name> <template-type>
+```
+
+**Example:**
+```bash
+oc init my-component handlebars
+```
+
+<Info>
+Available template types: `handlebars`, `jade`, `es6`
+</Info>
+
+### What Gets Created
+
+When you run `oc init`, the CLI:
+
+1. Creates a new directory for your component
+2. Initializes a `package.json` with OpenComponents configuration
+3. Installs the appropriate template compiler (e.g., `oc-template-handlebars-compiler`)
+4. Scaffolds basic component files from the template's scaffold directory
+5. Runs `npm install` to install dependencies
+
+<Steps>
+  <Step title="Directory Structure">
+    After initialization, your component directory will contain:
+    
+    ```
+    my-component/
+    ├── package.json       # Component configuration
+    ├── template.html      # View template
+    └── server.js          # Data provider (optional)
+    ```
+  </Step>
+  
+  <Step title="Configure package.json">
+    The `package.json` includes an `oc` section with component-specific configuration:
+    
+    ```json
+    {
+      "name": "my-component",
+      "version": "1.0.0",
+      "oc": {
+        "files": {
+          "template": {
+            "src": "template.html",
+            "type": "handlebars"
+          }
+        }
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Add Server-Side Logic (Optional)">
+    Create a `server.js` file to fetch data:
+    
+    ```javascript
+    module.exports.data = function(context, callback) {
+      callback(null, {
+        message: 'Hello from OpenComponents!'
+      });
+    };
+    ```
+    
+    Update `package.json` to reference it:
+    
+    ```json
+    {
+      "oc": {
+        "files": {
+          "data": "server.js",
+          "template": {
+            "src": "template.html",
+            "type": "handlebars"
+          }
+        }
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Build Your Template">
+    Edit `template.html` to use the data:
+    
+    ```html
+    <div class="my-component">
+      <h1>{{message}}</h1>
+    </div>
+    ```
+  </Step>
+</Steps>
+
+## Development Workflow
+
+### Local Development Server
+
+Start a local development server to preview your component:
+
+```bash
+oc dev . 3000
+```
+
+This starts a registry on port 3000 and watches for changes. The component will be available at:
+
+```
+http://localhost:3000/<component-name>
+```
+
+<Tip>
+Add this to your `package.json` scripts for convenience:
+
+```json
+{
+  "scripts": {
+    "start": "oc dev .. --components my-component",
+    "build": "oc package ."
+  }
+}
+```
+</Tip>
+
+### Preview Your Component
+
+Navigate to the component URL in your browser to see a preview with:
+- Live component rendering
+- Parameter inputs for testing
+- Debug information
+- Component metadata
+
+### Hot Reloading
+
+The dev server automatically reloads when you make changes to:
+- Template files
+- Server-side code
+- Static assets
+- Component configuration
+
+## Component Types
+
+### Static Components
+
+Components without server-side logic, just templates:
+
+```json
+{
+  "name": "hello-world",
+  "version": "1.0.0",
+  "oc": {
+    "files": {
+      "template": {
+        "src": "template.html",
+        "type": "handlebars"
+      }
+    }
+  }
+}
+```
+
+**template.html:**
+```html
+Hello world!
+```
+
+### Dynamic Components
+
+Components with server-side data fetching:
+
+```json
+{
+  "name": "welcome",
+  "version": "1.0.0",
+  "oc": {
+    "files": {
+      "data": "server.js",
+      "template": {
+        "src": "template.jade",
+        "type": "jade"
+      }
+    },
+    "parameters": {
+      "firstName": {
+        "type": "string",
+        "mandatory": true,
+        "example": "John"
+      },
+      "lastName": {
+        "type": "string",
+        "mandatory": false,
+        "example": "Doe"
+      }
+    }
+  }
+}
+```
+
+**server.js:**
+```javascript
+'use strict';
+
+module.exports.data = function(context, callback) {
+  callback(null, {
+    firstName: context.params.firstName || 'John',
+    lastName: context.params.lastName || 'Doe'
+  });
+};
+```
+
+## Template Compilers
+
+Each template type requires its corresponding compiler as a dev dependency:
+
+<CardGroup cols={3}>
+  <Card title="Handlebars" icon="code">
+    ```json
+    {
+      "devDependencies": {
+        "oc-template-handlebars-compiler": "^6.0.0"
+      }
+    }
+    ```
+  </Card>
+  
+  <Card title="Jade" icon="code">
+    ```json
+    {
+      "devDependencies": {
+        "oc-template-jade-compiler": "^7.0.0"
+      }
+    }
+    ```
+  </Card>
+  
+  <Card title="ES6" icon="code">
+    ```json
+    {
+      "devDependencies": {
+        "oc-template-es6-compiler": "^7.0.0"
+      }
+    }
+    ```
+  </Card>
+</CardGroup>
+
+<Warning>
+The compiler must be declared in `devDependencies` or the build will fail. The CLI will throw an error if it's missing:
+
+```
+Template dependency missing. To fix it run:
+npm install --save-dev handlebars-compiler --prefix /path/to/component
+```
+</Warning>
+
+## Packaging Components
+
+Before publishing, package your component:
+
+```bash
+oc package .
+```
+
+This command:
+1. Validates your component configuration
+2. Compiles the template
+3. Bundles server-side code
+4. Processes static assets
+5. Creates a `_package` directory with production-ready files
+
+<Tip>
+The `_package` directory is what gets published to the registry. Never edit files in this directory manually.
+</Tip>
+
+## Publishing Components
+
+Publish your packaged component to a registry:
+
+```bash
+oc publish my-component/ --registry=https://my-registry.com/
+```
+
+Or use the registry defined in `oc.json`:
+
+```json
+{
+  "registries": [
+    "https://my-registry.com/"
+  ]
+}
+```
+
+Then simply:
+
+```bash
+oc publish my-component/
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Component Structure" icon="sitemap" href="/components/component-structure">
+    Learn about the anatomy of a component
+  </Card>
+  
+  <Card title="Parameters" icon="sliders" href="/components/parameters">
+    Define and validate component parameters
+  </Card>
+  
+  <Card title="Data Providers" icon="database" href="/components/data-providers">
+    Write server-side logic to fetch data
+  </Card>
+  
+  <Card title="Templates" icon="file-code" href="/components/templates">
+    Choose and use different template types
+  </Card>
+</CardGroup>

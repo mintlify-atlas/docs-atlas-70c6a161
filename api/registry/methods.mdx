@@ -1,0 +1,605 @@
+---
+title: Registry Methods
+description: API reference for registry instance methods
+---
+
+The registry instance returned by the `registry()` function provides several methods for controlling the registry lifecycle and behavior.
+
+## start()
+
+Starts the HTTP server and initializes the registry.
+
+### Signature
+
+```typescript
+start(
+  callback: (
+    err: unknown,
+    data?: { app: express.Express; server: http.Server }
+  ) => void
+): Promise<void>
+```
+
+### Parameters
+
+<ParamField path="callback" type="function" required>
+  Callback function invoked when the server starts or encounters an error.
+  
+  <Expandable title="parameters">
+    <ParamField path="err" type="unknown">
+      Error object if startup failed, `null` otherwise.
+    </ParamField>
+    
+    <ParamField path="data" type="object">
+      Object containing the Express app and HTTP server instances.
+      
+      <Expandable title="properties">
+        <ParamField path="app" type="express.Express">
+          Express application instance.
+        </ParamField>
+        
+        <ParamField path="server" type="http.Server">
+          Node.js HTTP server instance.
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+`Promise<void>` - The method is async but uses callbacks for completion notification.
+
+### Behavior
+
+1. Initializes registered plugins
+2. Creates Express routes
+3. Initializes the component repository
+4. Starts the HTTP server
+5. Fires the `start` event
+6. Logs startup information if `verbosity` is enabled
+
+### Example
+
+```typescript
+import registry from 'oc';
+
+const app = registry({
+  baseUrl: 'https://components.mycompany.com/',
+  port: 3000,
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  }
+});
+
+app.start((err, data) => {
+  if (err) {
+    console.error('Failed to start registry:', err);
+    process.exit(1);
+  }
+  
+  console.log('Registry started successfully!');
+  console.log('Express app:', data.app);
+  console.log('HTTP server:', data.server);
+});
+```
+
+### Error Handling
+
+The callback receives an error if:
+
+- Plugin initialization fails
+- Component repository initialization fails
+- Port is already in use
+- HTTP server encounters an error
+
+```typescript
+app.start((err, data) => {
+  if (err) {
+    if (err.code === 'EADDRINUSE') {
+      console.error('Port is already in use');
+    } else {
+      console.error('Startup error:', err);
+    }
+    process.exit(1);
+  }
+});
+```
+
+---
+
+## close()
+
+Stops the HTTP server.
+
+### Signature
+
+```typescript
+close(callback: (err?: Error | string) => void): void
+```
+
+### Parameters
+
+<ParamField path="callback" type="function" required>
+  Callback function invoked when the server closes or if an error occurs.
+  
+  <Expandable title="parameters">
+    <ParamField path="err" type="Error | string">
+      Error object/message if closing failed, `undefined` if successful. Returns `'not opened'` if the server wasn't running.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+`void`
+
+### Behavior
+
+- Closes the HTTP server if it's currently listening
+- Returns error `'not opened'` if server wasn't started
+- Waits for all active connections to close
+
+### Example
+
+```typescript
+import registry from 'oc';
+
+const app = registry({
+  baseUrl: 'https://components.mycompany.com/',
+  storage: { /* ... */ }
+});
+
+app.start((err) => {
+  if (err) {
+    console.error('Failed to start:', err);
+    return;
+  }
+  
+  console.log('Registry started');
+  
+  // Close after 10 seconds
+  setTimeout(() => {
+    app.close((closeErr) => {
+      if (closeErr) {
+        console.error('Failed to close:', closeErr);
+        return;
+      }
+      console.log('Registry closed successfully');
+    });
+  }, 10000);
+});
+```
+
+### Graceful Shutdown
+
+```typescript
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, closing registry...');
+  
+  app.close((err) => {
+    if (err) {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    }
+    console.log('Registry closed gracefully');
+    process.exit(0);
+  });
+});
+```
+
+---
+
+## register()
+
+Registers a plugin with the registry.
+
+### Signature
+
+```typescript
+register<T = any>(
+  plugin: Plugin<T>,
+  callback?: (...args: any[]) => void
+): void
+```
+
+### Parameters
+
+<ParamField path="plugin" type="Plugin<T>" required>
+  Plugin object conforming to the Plugin interface.
+  
+  <Expandable title="properties">
+    <ParamField path="name" type="string" required>
+      Plugin name.
+    </ParamField>
+    
+    <ParamField path="description" type="string">
+      Plugin description.
+    </ParamField>
+    
+    <ParamField path="options" type="T">
+      Plugin-specific options.
+    </ParamField>
+    
+    <ParamField path="register" type="object" required>
+      Plugin registration object.
+      
+      <Expandable title="properties">
+        <ParamField path="register" type="function" required>
+          Initialization function called during plugin setup.
+        </ParamField>
+        
+        <ParamField path="execute" type="function" required>
+          Function executed when plugin is called by components.
+        </ParamField>
+        
+        <ParamField path="dependencies" type="string[]">
+          Array of npm package names the plugin depends on.
+        </ParamField>
+      </Expandable>
+    </ParamField>
+    
+    <ParamField path="context" type="boolean">
+      If `true`, the execute function receives a context object with component name and version.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="callback" type="function">
+  Optional callback function invoked during plugin registration.
+</ParamField>
+
+### Returns
+
+`void`
+
+### Example
+
+**Basic Plugin:**
+
+```typescript
+import registry from 'oc';
+
+const app = registry({
+  baseUrl: 'https://components.mycompany.com/',
+  storage: { /* ... */ }
+});
+
+// Register a simple plugin
+app.register({
+  name: 'logger',
+  description: 'Logs component data',
+  register: {
+    register: (options, dependencies, next) => {
+      console.log('Logger plugin initialized');
+      next();
+    },
+    execute: (data) => {
+      console.log('Component data:', data);
+      return data;
+    }
+  }
+});
+
+app.start((err) => {
+  if (err) {
+    console.error('Failed to start:', err);
+  }
+});
+```
+
+**Plugin with Context:**
+
+```typescript
+app.register({
+  name: 'tracker',
+  description: 'Tracks component usage',
+  context: true,
+  register: {
+    register: (options, dependencies, next) => {
+      console.log('Tracker plugin initialized');
+      next();
+    },
+    execute: (context) => {
+      // Context contains { name, version }
+      return (data) => {
+        console.log(`Component ${context.name}@${context.version} called`);
+        return data;
+      };
+    }
+  }
+});
+```
+
+**Plugin with Dependencies:**
+
+```typescript
+app.register({
+  name: 'cache',
+  description: 'Caches component responses',
+  options: {
+    ttl: 3600
+  },
+  register: {
+    dependencies: ['redis'],
+    register: (options, dependencies, next) => {
+      const redis = dependencies.redis;
+      console.log('Cache plugin initialized with TTL:', options.ttl);
+      next();
+    },
+    execute: (key, value) => {
+      // Cache implementation
+      return value;
+    }
+  }
+});
+```
+
+**Plugin with Callback:**
+
+```typescript
+app.register(
+  {
+    name: 'analytics',
+    register: {
+      register: (options, dependencies, next) => {
+        next();
+      },
+      execute: (event) => {
+        console.log('Analytics event:', event);
+      }
+    }
+  },
+  (result) => {
+    console.log('Plugin registration callback:', result);
+  }
+);
+```
+
+---
+
+## on()
+
+Subscribes to registry lifecycle events.
+
+### Signature
+
+```typescript
+on<T extends keyof Events>(
+  eventName: T,
+  listener: (data: Events[T]) => void
+): void
+```
+
+### Parameters
+
+<ParamField path="eventName" type="string" required>
+  Name of the event to listen to. See [Events](/api/registry/events) for available events.
+  
+  Available events:
+  - `start`
+  - `error`
+  - `request`
+  - `cache-poll`
+  - `component-retrieved`
+  - `component-published`
+  - `data-provider-error`
+</ParamField>
+
+<ParamField path="listener" type="function" required>
+  Callback function invoked when the event is fired.
+  
+  <Expandable title="parameters">
+    <ParamField path="data" type="Events[T]">
+      Event-specific data. Type varies by event.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+`void`
+
+### Example
+
+**Listen to Start Event:**
+
+```typescript
+import registry from 'oc';
+
+const app = registry({
+  baseUrl: 'https://components.mycompany.com/',
+  storage: { /* ... */ }
+});
+
+app.on('start', () => {
+  console.log('Registry has started!');
+});
+
+app.start((err) => {
+  if (err) {
+    console.error('Failed to start:', err);
+  }
+});
+```
+
+**Listen to Error Events:**
+
+```typescript
+app.on('error', (data) => {
+  console.error('Registry error:', data.code, data.message);
+  // Send to error tracking service
+});
+```
+
+**Listen to Request Events:**
+
+```typescript
+app.on('request', (data) => {
+  console.log(`${data.method} ${data.path} - ${data.statusCode} (${data.duration}ms)`);
+});
+```
+
+**Listen to Component Events:**
+
+```typescript
+app.on('component-retrieved', (data) => {
+  console.log(`Component ${data.name}@${data.requestVersion} retrieved in ${data.duration}ms`);
+});
+
+app.on('component-published', (data) => {
+  console.log(`Component ${data.componentName}@${data.componentVersion} published by ${data.user}`);
+});
+```
+
+**Multiple Event Listeners:**
+
+```typescript
+const app = registry({ /* ... */ });
+
+// Request logging
+app.on('request', (data) => {
+  if (data.statusCode >= 400) {
+    console.error('Failed request:', data);
+  }
+});
+
+// Error monitoring
+app.on('error', (data) => {
+  sendToMonitoring('registry-error', data);
+});
+
+// Component tracking
+app.on('component-retrieved', (data) => {
+  trackUsage(data.name, data.requestVersion);
+});
+
+app.on('component-published', (data) => {
+  notifyTeam(`New component published: ${data.componentName}@${data.componentVersion}`);
+});
+
+app.start((err) => {
+  if (err) {
+    console.error('Failed to start:', err);
+  }
+});
+```
+
+### Error Handling
+
+The listener function must be a function, otherwise an error is thrown:
+
+```typescript
+try {
+  app.on('start', 'not a function'); // Throws error
+} catch (err) {
+  console.error('Invalid listener:', err);
+}
+```
+
+---
+
+## app
+
+The Express application instance.
+
+### Type
+
+```typescript
+app: express.Express
+```
+
+### Description
+
+The underlying Express application instance. You can use this to add custom middleware, routes, or access Express functionality.
+
+### Example
+
+**Custom Middleware:**
+
+```typescript
+import registry from 'oc';
+
+const app = registry({
+  baseUrl: 'https://components.mycompany.com/',
+  storage: { /* ... */ }
+});
+
+// Add custom middleware before starting
+app.app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
+
+app.start((err) => {
+  if (err) {
+    console.error('Failed to start:', err);
+  }
+});
+```
+
+**Custom Routes:**
+
+```typescript
+app.app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+app.app.get('/metrics', (req, res) => {
+  res.json({
+    memory: process.memoryUsage(),
+    uptime: process.uptime()
+  });
+});
+```
+
+**Access Express Settings:**
+
+```typescript
+app.start((err, data) => {
+  if (err) {
+    console.error('Failed to start:', err);
+    return;
+  }
+  
+  console.log('Port:', app.app.get('port'));
+  console.log('Environment:', app.app.get('env'));
+});
+```
+
+## TypeScript Types
+
+All registry methods are fully typed. Import types from the package:
+
+```typescript
+import registry, { RegistryOptions, Plugin } from 'oc';
+import type { Express } from 'express';
+import type { Server } from 'http';
+
+const options: RegistryOptions = {
+  baseUrl: 'https://components.mycompany.com/',
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  }
+};
+
+const app = registry(options);
+
+app.start((err: unknown, data?: { app: Express; server: Server }) => {
+  if (err) {
+    console.error('Failed to start:', err);
+    return;
+  }
+  console.log('Started successfully');
+});
+```

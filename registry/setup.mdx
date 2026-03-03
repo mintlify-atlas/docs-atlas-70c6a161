@@ -1,0 +1,346 @@
+---
+title: Registry Setup
+description: Install and configure an OpenComponents Registry
+---
+
+This guide walks through setting up an OpenComponents Registry for both development and production environments.
+
+## Installation
+
+Install the `oc` package:
+
+```bash
+npm install oc
+```
+
+## Basic Setup
+
+### Local Development Registry
+
+For local development, create a Registry that serves components from the filesystem:
+
+```javascript
+const oc = require('oc');
+
+const registry = oc.registry({
+  baseUrl: 'http://localhost:3000/',
+  port: 3000,
+  local: true,
+  path: './components',
+  verbosity: 1
+});
+
+registry.start((err, app) => {
+  if (err) {
+    console.error('Registry failed to start:', err);
+    process.exit(1);
+  }
+  console.log('Local registry started at http://localhost:3000/');
+});
+```
+
+<ParamField path="local" type="boolean" required>
+  Set to `true` to serve components from the local filesystem
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  Absolute path to the directory containing component folders
+</ParamField>
+
+<ParamField path="verbosity" type="number" default="0">
+  Console logging level (0 = silent, 1+ = verbose)
+</ParamField>
+
+### Production Registry with S3
+
+For production, configure a Registry with S3 storage:
+
+```javascript
+const oc = require('oc');
+
+const registry = oc.registry({
+  baseUrl: 'https://components.mycompany.com/',
+  port: 3000,
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components-bucket',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  },
+  env: {
+    API_KEY: process.env.API_KEY
+  },
+  dependencies: ['lodash', 'axios'],
+  verbosity: 1
+});
+
+registry.start((err, app) => {
+  if (err) {
+    console.error('Registry failed to start:', err);
+    process.exit(1);
+  }
+  console.log('Registry started successfully');
+});
+```
+
+<ParamField path="storage" type="object" required>
+  Storage adapter configuration for cloud storage
+</ParamField>
+
+<ParamField path="env" type="object" default="{}">
+  Environment variables passed to components in `context.env`
+</ParamField>
+
+<ParamField path="dependencies" type="string[]" default="[]">
+  npm packages that components can `require()` at runtime
+</ParamField>
+
+## S3 Shorthand Configuration
+
+For S3, you can use the shorthand `s3` option:
+
+```javascript
+const registry = oc.registry({
+  baseUrl: 'https://components.mycompany.com/',
+  port: 3000,
+  s3: {
+    bucket: 'my-components-bucket',
+    region: 'us-east-1',
+    componentsDir: 'components',
+    // Optional credentials (uses AWS SDK defaults if omitted)
+    key: process.env.AWS_ACCESS_KEY_ID,
+    secret: process.env.AWS_SECRET_ACCESS_KEY
+  }
+});
+```
+
+The Registry will automatically create an S3 storage adapter from these options.
+
+## Environment Variables
+
+The Registry respects these environment variables:
+
+| Variable | Purpose | Default |
+|----------|---------|--------|
+| `PORT` | HTTP server port | `3000` |
+| `AWS_ACCESS_KEY_ID` | AWS credentials | - |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials | - |
+
+## TypeScript Setup
+
+For TypeScript projects:
+
+```typescript
+import oc from 'oc';
+import type { RegistryOptions } from 'oc';
+import s3Adapter from 'oc-s3-storage-adapter';
+
+const config: RegistryOptions = {
+  baseUrl: 'https://components.mycompany.com/',
+  port: 3000,
+  storage: {
+    adapter: s3Adapter,
+    options: {
+      bucket: 'my-components-bucket',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  }
+};
+
+const registry = oc.registry(config);
+
+registry.start((err, app) => {
+  if (err) {
+    console.error('Registry failed to start:', err);
+    process.exit(1);
+  }
+  console.log('Registry started');
+});
+```
+
+## Docker Setup
+
+Create a `Dockerfile` for containerized deployment:
+
+```dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --production
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]
+```
+
+And a `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  registry:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - NODE_ENV=production
+    restart: unless-stopped
+```
+
+## Health Checks
+
+The Registry root endpoint (`GET /`) returns a 200 status when healthy, making it suitable for health checks:
+
+```yaml
+# Kubernetes liveness probe
+livenessProbe:
+  httpGet:
+    path: /
+    port: 3000
+  initialDelaySeconds: 10
+  periodSeconds: 30
+```
+
+## Registry Instance Methods
+
+The `registry()` function returns an instance with these methods:
+
+### `start(callback)`
+
+Start the Registry server:
+
+```javascript
+registry.start((err, { app, server }) => {
+  if (err) {
+    console.error('Failed to start:', err);
+    return;
+  }
+  console.log('Registry started');
+  // app: Express application instance
+  // server: Node.js HTTP server instance
+});
+```
+
+### `close(callback)`
+
+Gracefully shut down the Registry:
+
+```javascript
+process.on('SIGTERM', () => {
+  registry.close((err) => {
+    if (err) {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    }
+    console.log('Registry closed gracefully');
+    process.exit(0);
+  });
+});
+```
+
+### `register(plugin, callback)`
+
+Register a plugin:
+
+```javascript
+const myPlugin = require('./my-plugin');
+
+registry.register(myPlugin, (err) => {
+  if (err) {
+    console.error('Plugin registration failed:', err);
+  }
+});
+
+registry.start(...);
+```
+
+Plugins must be registered **before** calling `start()`.
+
+### `on(event, listener)`
+
+Subscribe to Registry events:
+
+```javascript
+registry.on('start', () => {
+  console.log('Registry has started');
+});
+
+registry.on('component-published', (data) => {
+  console.log(`Published ${data.componentName}@${data.componentVersion}`);
+});
+
+registry.start(...);
+```
+
+See [Events](/registry/events) for all available events.
+
+## Validation
+
+The Registry validates configuration on startup. Common errors:
+
+### Missing `baseUrl`
+
+```
+Error: Missing required baseUrl parameter
+```
+
+The `baseUrl` parameter is always required.
+
+### Invalid `baseUrl` format
+
+```
+Error: baseUrl must include the prefix
+```
+
+If you set a custom `prefix`, ensure `baseUrl` includes it:
+
+```javascript
+// ❌ Wrong
+{
+  baseUrl: 'https://example.com/',
+  prefix: '/components/'
+}
+
+// ✅ Correct
+{
+  baseUrl: 'https://example.com/components/',
+  prefix: '/components/'
+}
+```
+
+The sanitizer will automatically append the prefix if missing.
+
+### Missing storage configuration
+
+```
+Error: Storage adapter is required when local is false
+```
+
+For remote registries, you must configure either `storage` or `s3`.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/registry/configuration">
+    Explore all configuration options
+  </Card>
+  <Card title="Storage Adapters" icon="database" href="/registry/storage-adapters">
+    Configure cloud storage
+  </Card>
+  <Card title="Authentication" icon="lock" href="/registry/authentication">
+    Secure component publishing
+  </Card>
+  <Card title="Events" icon="bolt" href="/registry/events">
+    Subscribe to lifecycle events
+  </Card>
+</CardGroup>

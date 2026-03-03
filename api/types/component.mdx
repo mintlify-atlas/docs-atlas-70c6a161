@@ -1,0 +1,309 @@
+---
+title: 'Component Types'
+description: 'Component, ParsedComponent, and OcConfiguration type definitions'
+---
+
+## Component
+
+Represents a complete OpenComponents component with all metadata and configuration.
+
+```typescript
+export interface Component extends PackageJson {
+  allVersions: string[];
+  name: string;
+  oc: OcConfiguration;
+  version: string;
+}
+```
+
+<ResponseField name="allVersions" type="string[]" required>
+  Array of all available versions for this component
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  The component name
+</ResponseField>
+
+<ResponseField name="oc" type="OcConfiguration" required>
+  OpenComponents-specific configuration object. See [OcConfiguration](#occonfiguration) below.
+</ResponseField>
+
+<ResponseField name="version" type="string" required>
+  The current version of the component
+</ResponseField>
+
+<ResponseField name="...PackageJson" type="PackageJson">
+  Extends all properties from Node.js `package.json` format (from `type-fest` package)
+</ResponseField>
+
+---
+
+## ParsedComponent
+
+A component with a parsed author field instead of the raw string format.
+
+```typescript
+export interface ParsedComponent extends Omit<Component, 'author'> {
+  author: Author;
+}
+```
+
+<ResponseField name="author" type="Author" required>
+  Structured author information with email, name, and URL fields
+</ResponseField>
+
+<Expandable title="Author interface">
+  ```typescript
+  interface Author {
+    email?: string;
+    name?: string;
+    url?: string;
+  }
+  ```
+
+  <ResponseField name="email" type="string">
+    Author's email address
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    Author's name
+  </ResponseField>
+
+  <ResponseField name="url" type="string">
+    Author's website or profile URL
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="...Component" type="Omit<Component, 'author'>">
+  All other properties from Component interface except `author`
+</ResponseField>
+
+---
+
+## OcConfiguration
+
+OpenComponents-specific configuration embedded in the component's package.json.
+
+```typescript
+interface OcConfiguration {
+  container?: boolean;
+  date: number;
+  files: {
+    imports?: Record<string, string>;
+    dataProvider: {
+      hashKey: string;
+      src: string;
+      type: string;
+      size?: number;
+    };
+    static: string[];
+    template: {
+      hashKey: string;
+      src: string;
+      type: string;
+      version: string;
+      minOcVersion?: string;
+      size?: number;
+    };
+    env?: string;
+  };
+  packaged: boolean;
+  parameters: Record<string, OcParameter>;
+  plugins?: string[];
+  renderInfo?: boolean;
+  state?: 'deprecated' | 'experimental';
+  stringifiedDate: string;
+  publisher?: string;
+  version: string;
+}
+```
+
+<ResponseField name="container" type="boolean">
+  Whether the component runs in a container
+</ResponseField>
+
+<ResponseField name="date" type="number" required>
+  Timestamp when the component was packaged
+</ResponseField>
+
+<ResponseField name="files" type="object" required>
+  Component file configuration
+
+  <Expandable title="files properties">
+    <ResponseField name="imports" type="Record<string, string>">
+      Import mappings for external dependencies
+    </ResponseField>
+
+    <ResponseField name="dataProvider" type="object" required>
+      Data provider (server-side logic) file information
+
+      <ResponseField name="hashKey" type="string" required>
+        Hash of the data provider file
+      </ResponseField>
+
+      <ResponseField name="src" type="string" required>
+        Path to the data provider file
+      </ResponseField>
+
+      <ResponseField name="type" type="string" required>
+        File type (e.g., "node")
+      </ResponseField>
+
+      <ResponseField name="size" type="number">
+        File size in bytes
+      </ResponseField>
+    </ResponseField>
+
+    <ResponseField name="static" type="string[]" required>
+      Array of static asset file paths
+    </ResponseField>
+
+    <ResponseField name="template" type="object" required>
+      Template file information
+
+      <ResponseField name="hashKey" type="string" required>
+        Hash of the template file
+      </ResponseField>
+
+      <ResponseField name="src" type="string" required>
+        Path to the template file
+      </ResponseField>
+
+      <ResponseField name="type" type="string" required>
+        Template type (e.g., "oc-template-react")
+      </ResponseField>
+
+      <ResponseField name="version" type="string" required>
+        Template version used
+      </ResponseField>
+
+      <ResponseField name="minOcVersion" type="string">
+        Minimum OpenComponents version required
+      </ResponseField>
+
+      <ResponseField name="size" type="number">
+        Template file size in bytes
+      </ResponseField>
+    </ResponseField>
+
+    <ResponseField name="env" type="string">
+      Path to environment configuration file
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="packaged" type="boolean" required>
+  Whether the component has been packaged
+</ResponseField>
+
+<ResponseField name="parameters" type="Record<string, OcParameter>" required>
+  Component parameters definition. Keys are parameter names.
+
+  <Expandable title="OcParameter interface">
+    ```typescript
+    interface OcParameter {
+      default?: string | boolean | number;
+      description?: string;
+      example?: string | boolean | number;
+      mandatory?: boolean;
+      enum?: string[] | number[] | boolean[];
+      type: 'string' | 'boolean' | 'number';
+    }
+    ```
+
+    <ResponseField name="type" type="'string' | 'boolean' | 'number'" required>
+      Parameter data type
+    </ResponseField>
+
+    <ResponseField name="default" type="string | boolean | number">
+      Default value if not provided
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      Human-readable description of the parameter
+    </ResponseField>
+
+    <ResponseField name="example" type="string | boolean | number">
+      Example value for documentation
+    </ResponseField>
+
+    <ResponseField name="mandatory" type="boolean">
+      Whether the parameter is required
+    </ResponseField>
+
+    <ResponseField name="enum" type="string[] | number[] | boolean[]">
+      Restricts parameter values to a specific set. Example:
+      ```typescript
+      {
+        type: 'string',
+        enum: ['foo', 'bar', 'baz']
+      }
+      ```
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="plugins" type="string[]">
+  Array of plugin names used by this component
+</ResponseField>
+
+<ResponseField name="renderInfo" type="boolean">
+  Whether to include rendering information in the response
+</ResponseField>
+
+<ResponseField name="state" type="'deprecated' | 'experimental'">
+  Component lifecycle state
+</ResponseField>
+
+<ResponseField name="stringifiedDate" type="string" required>
+  Human-readable packaging date
+</ResponseField>
+
+<ResponseField name="publisher" type="string">
+  Username of the person who published the component
+</ResponseField>
+
+<ResponseField name="version" type="string" required>
+  Component version
+</ResponseField>
+
+---
+
+## Related Types
+
+### ComponentDetail
+
+Version-specific component metadata.
+
+```typescript
+export type ComponentDetail = {
+  [componentVersion: string]: {
+    publishDate: number;
+    templateSize?: number;
+  };
+};
+```
+
+### ComponentsDetails
+
+Aggregate metadata for multiple components.
+
+```typescript
+export interface ComponentsDetails {
+  components: {
+    [componentName: string]: ComponentDetail;
+  };
+  lastEdit: number;
+}
+```
+
+### ComponentsList
+
+Simplified list of components with their versions.
+
+```typescript
+export interface ComponentsList {
+  components: Record<string, string[]>;
+  lastEdit: number;
+}
+```

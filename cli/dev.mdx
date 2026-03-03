@@ -1,0 +1,258 @@
+---
+title: oc dev
+description: Run a local development registry with hot reloading
+---
+
+The `dev` command starts a local OpenComponents registry server for developing and testing components. It automatically packages components, watches for changes, and supports hot reloading.
+
+## Usage
+
+```bash
+oc dev <dirPath> [port] [baseUrl] [options]
+```
+
+## Arguments
+
+### `dirPath` (required)
+
+The directory containing your components. The CLI will scan this directory for all components (directories with `package.json` files containing OpenComponents metadata).
+
+### `port` (optional)
+
+The port number for the development server.
+
+- **Default:** `3000`
+- **Example:** `oc dev . 3001`
+
+### `baseUrl` (optional)
+
+The base URL for the registry.
+
+- **Default:** `http://localhost:<port>/`
+- **Example:** `oc dev . 3000 http://127.0.0.1:3000`
+
+## Options
+
+### `--fallbackRegistryUrl`
+
+URL to another registry to use as a fallback when a component cannot be found locally.
+
+- **Type:** String
+- **Example:** `--fallbackRegistryUrl=http://registry.example.com/`
+
+This is useful when developing components that depend on other components hosted elsewhere.
+
+### `--hotReloading`
+
+Enable or disable hot reloading.
+
+- **Type:** Boolean
+- **Default:** `true`
+- **Example:** `--hotReloading=false`
+
+When enabled, each request creates a new instance for JavaScript closures to be loaded. When disabled, instances are recycled between component executions.
+
+### `--postRequestPayloadSize`
+
+Maximum payload size for POST requests.
+
+- **Type:** String
+- **Default:** `100kb`
+- **Example:** `--postRequestPayloadSize=5mb`
+
+### `--verbose`
+
+Enable verbose logging.
+
+- **Type:** Boolean
+- **Default:** `false`
+- **Example:** `--verbose`
+
+### `--watch`
+
+Watch for file changes and automatically repackage components.
+
+- **Type:** Boolean
+- **Default:** `true`
+- **Example:** `--watch=false`
+
+### `--production`
+
+Force packaging for production (minified assets, optimized builds).
+
+- **Type:** Boolean
+- **Default:** `false`
+- **Example:** `--production`
+
+### `--prefix`
+
+URL prefix for the registry server.
+
+- **Type:** String
+- **Default:** `""` (empty string)
+- **Example:** `--prefix=/oc`
+
+Useful when running the registry behind a reverse proxy.
+
+### `--components`
+
+List of specific component names to package and expose.
+
+- **Type:** Array
+- **Example:** `--components=header --components=footer`
+
+If not specified, all components in the directory will be packaged.
+
+## Examples
+
+### Basic usage
+
+```bash
+oc dev ./components
+```
+
+Starts a development server on port 3000 with all components in the `./components` directory.
+
+### Custom port and verbose logging
+
+```bash
+oc dev ./components 3001 --verbose
+```
+
+### With fallback registry
+
+```bash
+oc dev ../all-components 3001 127.0.0.1:3001 --fallbackRegistryUrl=http://production-registry.com/
+```
+
+This allows you to develop components locally while using production components as dependencies.
+
+### Specific components only
+
+```bash
+oc dev ./components --components=header --components=footer
+```
+
+Only packages and serves the `header` and `footer` components.
+
+### Production mode
+
+```bash
+oc dev ./components --production
+```
+
+Packages components with production optimizations (minification, etc.).
+
+## Output
+
+When starting the development server, you'll see:
+
+```bash
+$ oc dev ./components 3000
+
+Scanning components...
+✓ OK
+├── header
+├── footer
+└── navigation
+
+Packaging components...
+Packaging "header"... OK
+Packaging "footer"... OK
+Packaging "navigation"... OK
+
+Starting registry at http://localhost:3000/
+Starting live reload server on port 35729
+
+✓ Registry started
+```
+
+## Hot Reloading
+
+When hot reloading is enabled (default), the dev server:
+
+1. Watches all component files for changes
+2. Automatically repackages changed components
+3. Refreshes the browser via LiveReload
+
+You'll see output like:
+
+```bash
+Changes detected: ./components/header/template.html
+Packaging "header"... OK
+[LiveReload] Browser connected
+```
+
+## Configuration File
+
+The dev command reads configuration from `oc.json` in your project:
+
+```json
+{
+  "development": {
+    "fallback": {
+      "url": "http://production-registry.com/",
+      "client": true
+    },
+    "preload": ["header", "footer"],
+    "routes": [
+      {
+        "route": "/custom",
+        "handler": "./custom-handler.js"
+      }
+    ]
+  }
+}
+```
+
+## Plugin Mocking
+
+If your components use plugins that aren't available locally, you can mock them:
+
+```bash
+oc mock plugin hash "mock-value"
+oc dev ./components
+```
+
+See the [mock command](/cli/mock) for details.
+
+## Error Handling
+
+### Port already in use
+
+```bash
+Error: Port 3000 is already in use
+```
+
+Use a different port: `oc dev ./components 3001`
+
+### No components found
+
+```bash
+Error: No components found in directory
+```
+
+Make sure the directory contains valid component directories with `package.json` files.
+
+### Packaging errors
+
+If a component fails to package:
+
+```bash
+Error packaging "header": Compilation failed
+Retrying in 10 seconds...
+```
+
+The dev server will automatically retry after fixing the error.
+
+## Performance Tips
+
+1. Use `--components` to only package the components you're working on
+2. Disable `--watch` if you don't need automatic repackaging
+3. Use `--hotReloading=false` for slightly faster response times in production-like testing
+
+## Related Commands
+
+- [**preview**](/cli/preview) - Open a component in a test page
+- [**mock**](/cli/mock) - Mock plugins for local development
+- [**package**](/cli/package) - Manually package a component

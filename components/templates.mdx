@@ -1,0 +1,486 @@
+---
+title: Templates
+description: Using different template engines in OpenComponents
+---
+
+## Overview
+
+OpenComponents supports multiple template engines for rendering your component's view. Each template type has its own compiler that transforms your template into optimized JavaScript functions.
+
+## Available Template Types
+
+<CardGroup cols={3}>
+  <Card title="Handlebars" icon="hand">
+    Simple, logic-less templating with mustache syntax
+  </Card>
+  
+  <Card title="Jade (Pug)" icon="gem">
+    Concise, indentation-based templating
+  </Card>
+  
+  <Card title="ES6" icon="js">
+    Modern JavaScript with JSX-like syntax
+  </Card>
+</CardGroup>
+
+## Handlebars Templates
+
+### Setup
+
+Install the Handlebars compiler:
+
+```bash
+npm install --save-dev oc-template-handlebars-compiler
+```
+
+**package.json:**
+```json
+{
+  "name": "my-component",
+  "version": "1.0.0",
+  "oc": {
+    "files": {
+      "template": {
+        "src": "template.html",
+        "type": "handlebars"
+      }
+    }
+  },
+  "devDependencies": {
+    "oc-template-handlebars-compiler": "^6.7.0"
+  }
+}
+```
+
+### Syntax
+
+**Basic Usage:**
+```handlebars
+<div class="greeting">
+  <h1>Hello {{firstName}} {{lastName}}!</h1>
+  <p>Welcome to our site.</p>
+</div>
+```
+
+**Conditionals:**
+```handlebars
+{{#if showWelcome}}
+  <div class="welcome-message">
+    <h2>Welcome back, {{userName}}!</h2>
+  </div>
+{{else}}
+  <div class="login-prompt">
+    <a href="/login">Please log in</a>
+  </div>
+{{/if}}
+```
+
+**Loops:**
+```handlebars
+<ul class="user-list">
+  {{#each users}}
+    <li>
+      <strong>{{this.name}}</strong>
+      <span>{{this.email}}</span>
+    </li>
+  {{/each}}
+</ul>
+```
+
+**With Helper:**
+```handlebars
+{{#with user}}
+  <div class="profile">
+    <h3>{{name}}</h3>
+    <p>{{bio}}</p>
+    <a href="mailto:{{email}}">Contact</a>
+  </div>
+{{/with}}
+```
+
+### Real Example
+
+From `test/fixtures/components/hello-world`:
+
+<CodeGroup>
+```json package.json
+{
+  "name": "hello-world",
+  "description": "",
+  "version": "1.0.0",
+  "repository": "",
+  "oc": {
+    "files": {
+      "template": {
+        "src": "template.html",
+        "type": "handlebars"
+      }
+    }
+  }
+}
+```
+
+```html template.html
+Hello world!
+```
+</CodeGroup>
+
+## Jade (Pug) Templates
+
+### Setup
+
+Install the Jade compiler:
+
+```bash
+npm install --save-dev oc-template-jade-compiler
+```
+
+**package.json:**
+```json
+{
+  "name": "my-component",
+  "version": "1.0.0",
+  "oc": {
+    "files": {
+      "template": {
+        "src": "template.jade",
+        "type": "jade"
+      }
+    }
+  },
+  "devDependencies": {
+    "oc-template-jade-compiler": "^7.5.0"
+  }
+}
+```
+
+### Syntax
+
+**Basic Usage:**
+```jade
+.greeting
+  h1 Hello #{firstName} #{lastName}!
+  p Welcome to our site.
+```
+
+**Conditionals:**
+```jade
+if showWelcome
+  .welcome-message
+    h2 Welcome back, #{userName}!
+else
+  .login-prompt
+    a(href="/login") Please log in
+```
+
+**Loops:**
+```jade
+ul.user-list
+  each user in users
+    li
+      strong= user.name
+      span= user.email
+```
+
+**Attributes:**
+```jade
+a.button(href=url, class=buttonClass, data-id=id) Click me
+
+img(src=imageUrl, alt=description)
+```
+
+### File Includes and Filters
+
+Jade templates support powerful file inclusion with filters:
+
+**Including CSS:**
+```jade
+style
+  include:uglify-css ./files/styles.css
+  include:clean-css ./files/theme.css
+```
+
+**Including JavaScript:**
+```jade
+script
+  include:uglify-js ./files/script.js
+```
+
+### Real Example
+
+From `test/fixtures/components/welcome-with-optional-parameters`:
+
+<CodeGroup>
+```json package.json
+{
+  "name": "welcome-with-optional-parameters",
+  "version": "1.0.0",
+  "oc": {
+    "container": false,
+    "files": {
+      "data": "server.js",
+      "template": {
+        "src": "template.jade",
+        "type": "jade"
+      }
+    },
+    "parameters": {
+      "firstName": {
+        "type": "string",
+        "mandatory": true,
+        "example": "John"
+      },
+      "lastName": {
+        "type": "string",
+        "mandatory": false,
+        "example": "Smith"
+      },
+      "nick": {
+        "type": "string",
+        "mandatory": false,
+        "example": "Smith",
+        "default": "Johnny"
+      }
+    },
+    "renderInfo": false
+  }
+}
+```
+
+```javascript server.js
+'use strict';
+
+module.exports.data = function (context, callback) {
+  callback(null, {
+    firstName: context.params.firstName,
+    lastName: context.params.lastName,
+    nick: context.params.nick
+  });
+};
+```
+
+```jade template.jade
+span hi #{firstName} #{lastName} (#{nick})
+```
+</CodeGroup>
+
+### Jade Filters Example
+
+From `test/fixtures/components/jade-filters`:
+
+<CodeGroup>
+```jade template.jade
+style
+    include:uglify-css ./files/file.css
+    include:clean-css ./files/file2.css
+
+script
+    include:uglify-js ./files/file.js
+```
+
+```css files/file.css
+body {
+  background-color: red;
+}
+```
+
+```javascript files/file.js
+var sum = function (x, y) {
+  return x + y;
+};
+
+console.log(sum(1, 7));
+```
+</CodeGroup>
+
+<Tip>
+The `include:uglify-css` and `include:uglify-js` filters automatically minify your assets during compilation.
+</Tip>
+
+## ES6 Templates
+
+### Setup
+
+Install the ES6 compiler:
+
+```bash
+npm install --save-dev oc-template-es6-compiler
+```
+
+**package.json:**
+```json
+{
+  "name": "my-component",
+  "version": "1.0.0",
+  "oc": {
+    "files": {
+      "template": {
+        "src": "template.js",
+        "type": "es6"
+      }
+    }
+  },
+  "devDependencies": {
+    "oc-template-es6-compiler": "^7.1.2"
+  }
+}
+```
+
+### Syntax
+
+**Basic Usage:**
+```javascript
+export default function(props) {
+  return (
+    <div className="greeting">
+      <h1>Hello {props.firstName} {props.lastName}!</h1>
+      <p>Welcome to our site.</p>
+    </div>
+  );
+}
+```
+
+**With Logic:**
+```javascript
+export default function(props) {
+  const { items, title } = props;
+  
+  return (
+    <div className="item-list">
+      <h2>{title}</h2>
+      {items.length > 0 ? (
+        <ul>
+          {items.map(item => (
+            <li key={item.id}>
+              <strong>{item.name}</strong>
+              <span>${item.price}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No items available</p>
+      )}
+    </div>
+  );
+}
+```
+
+## Template API
+
+Each template compiler implements a standard interface defined in the codebase:
+
+```typescript
+interface Template {
+  // Compile component for production
+  compile?: (options: CompilerOptions, cb: (err: Error | null) => void) => void;
+  
+  // Get compiled template function
+  getCompiledTemplate: (
+    templateString: string,
+    key: string,
+    context?: Record<string, unknown>
+  ) => CompiledTemplate;
+  
+  // Get template information
+  getInfo: () => TemplateInfo;
+  
+  // Render template with data
+  render: (options: any, cb: (err: Error | null, data: string) => void) => void;
+}
+
+interface TemplateInfo {
+  externals: Array<{
+    name: string;
+    global: string | string[];
+    url: string;
+    devUrl?: string;
+  }>;
+  type: string;       // 'handlebars', 'jade', 'es6'
+  version: string;    // Compiler version
+}
+```
+
+## Choosing a Template Engine
+
+<AccordionGroup>
+  <Accordion title="Use Handlebars when...">
+    - You want simple, logic-less templates
+    - Your team is familiar with mustache syntax
+    - You need a gentle learning curve
+    - Your component has minimal conditional logic
+  </Accordion>
+  
+  <Accordion title="Use Jade when...">
+    - You prefer concise, indentation-based syntax
+    - You need powerful file inclusion and filters
+    - You want to inline and minify CSS/JS
+    - Your team values readability and brevity
+  </Accordion>
+  
+  <Accordion title="Use ES6 when...">
+    - You want to write modern JavaScript
+    - Your team uses React or similar frameworks
+    - You need complex client-side interactivity
+    - You prefer component-based architecture
+  </Accordion>
+</AccordionGroup>
+
+## Template Compilation
+
+When you run `oc package`, the compiler:
+
+1. **Validates** the template syntax
+2. **Compiles** the template into a JavaScript function
+3. **Optimizes** the output for production
+4. **Generates** source maps for debugging
+5. **Creates** hash keys for cache invalidation
+
+The compiled template is stored in `_package/template.js`:
+
+```javascript
+// Compiled template example (simplified)
+module.exports = function(model) {
+  return '<div class="greeting"><h1>Hello ' + 
+         model.firstName + ' ' + model.lastName + 
+         '!</h1></div>';
+};
+```
+
+## Template Externals
+
+Templates can declare external dependencies (libraries loaded from CDN):
+
+```typescript
+{
+  externals: [
+    {
+      name: 'react',
+      global: 'React',
+      url: 'https://unpkg.com/react@18/umd/react.production.min.js',
+      devUrl: 'https://unpkg.com/react@18/umd/react.development.js'
+    }
+  ]
+}
+```
+
+These are automatically injected into the component's HTML when rendered.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Data Providers" icon="database" href="/components/data-providers">
+    Connect templates to server-side data
+  </Card>
+  
+  <Card title="Parameters" icon="sliders" href="/components/parameters">
+    Pass data to your templates via parameters
+  </Card>
+  
+  <Card title="Static Assets" icon="image" href="/components/static-assets">
+    Include CSS, images, and scripts
+  </Card>
+  
+  <Card title="Component Structure" icon="sitemap" href="/components/component-structure">
+    Understand the full component anatomy
+  </Card>
+</CardGroup>

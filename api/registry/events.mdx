@@ -1,0 +1,581 @@
+---
+title: Registry Events
+description: Event system for monitoring registry lifecycle and operations
+---
+
+The OpenComponents Registry emits events during its lifecycle that you can subscribe to for monitoring, logging, and analytics purposes.
+
+## Event Subscription
+
+Use the `on()` method to subscribe to events:
+
+```typescript
+import registry from 'oc';
+
+const app = registry({ /* ... */ });
+
+app.on('event-name', (data) => {
+  console.log('Event data:', data);
+});
+```
+
+See the [on() method](/api/registry/methods#on) documentation for more details.
+
+## Available Events
+
+### start
+
+Fired when the registry HTTP server has started successfully.
+
+#### Event Data
+
+```typescript
+{}
+```
+
+Empty object.
+
+#### Example
+
+```typescript
+app.on('start', () => {
+  console.log('Registry has started!');
+  // Initialize monitoring
+  // Send startup notification
+});
+```
+
+---
+
+### error
+
+Fired when a registry-level error occurs.
+
+#### Event Data
+
+<ParamField path="code" type="string" required>
+  Error code identifying the type of error.
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  Human-readable error message.
+</ParamField>
+
+#### Example
+
+```typescript
+app.on('error', (data) => {
+  console.error(`Registry error [${data.code}]: ${data.message}`);
+  
+  // Send to error tracking service
+  errorTracker.captureError({
+    code: data.code,
+    message: data.message,
+    timestamp: new Date()
+  });
+});
+```
+
+#### Common Error Codes
+
+- `EXPRESS_ERROR` - HTTP server error
+- `STORAGE_ERROR` - Storage adapter error
+- `PLUGIN_ERROR` - Plugin initialization or execution error
+
+---
+
+### request
+
+Fired after each HTTP request is processed.
+
+#### Event Data
+
+<ParamField path="method" type="string" required>
+  HTTP method (GET, POST, etc.).
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  Request path.
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  Full request URL.
+</ParamField>
+
+<ParamField path="relativeUrl" type="string" required>
+  Relative URL path.
+</ParamField>
+
+<ParamField path="statusCode" type="number" required>
+  HTTP response status code.
+</ParamField>
+
+<ParamField path="duration" type="number" required>
+  Request duration in milliseconds.
+</ParamField>
+
+<ParamField path="headers" type="IncomingHttpHeaders" required>
+  Request headers object.
+</ParamField>
+
+<ParamField path="query" type="object" required>
+  Query parameters object.
+</ParamField>
+
+<ParamField path="body" type="unknown" required>
+  Request body.
+</ParamField>
+
+<ParamField path="errorCode" type="string">
+  Error code if request failed.
+</ParamField>
+
+<ParamField path="errorDetails" type="string">
+  Error details if request failed.
+</ParamField>
+
+#### Example
+
+```typescript
+app.on('request', (data) => {
+  const logLevel = data.statusCode >= 500 ? 'error' :
+                   data.statusCode >= 400 ? 'warn' : 'info';
+  
+  console[logLevel](
+    `${data.method} ${data.path} - ${data.statusCode} (${data.duration}ms)`
+  );
+  
+  // Track slow requests
+  if (data.duration > 1000) {
+    console.warn('Slow request detected:', {
+      path: data.path,
+      duration: data.duration,
+      statusCode: data.statusCode
+    });
+  }
+  
+  // Track errors
+  if (data.statusCode >= 400) {
+    errorLogger.log({
+      method: data.method,
+      path: data.path,
+      statusCode: data.statusCode,
+      errorCode: data.errorCode,
+      errorDetails: data.errorDetails
+    });
+  }
+});
+```
+
+---
+
+### cache-poll
+
+Fired after the registry polls the storage adapter for component updates.
+
+#### Event Data
+
+```typescript
+number
+```
+
+Number of milliseconds since last poll.
+
+#### Example
+
+```typescript
+app.on('cache-poll', (duration) => {
+  console.log(`Component cache polled in ${duration}ms`);
+  
+  // Monitor polling performance
+  if (duration > 5000) {
+    console.warn('Cache poll took longer than expected:', duration);
+  }
+});
+```
+
+---
+
+### component-retrieved
+
+Fired when a component is successfully retrieved and rendered.
+
+#### Event Data
+
+<ParamField path="name" type="string" required>
+  Component name.
+</ParamField>
+
+<ParamField path="requestVersion" type="string" required>
+  Requested component version.
+</ParamField>
+
+<ParamField path="duration" type="number" required>
+  Retrieval duration in milliseconds.
+</ParamField>
+
+<ParamField path="headers" type="IncomingHttpHeaders" required>
+  Request headers.
+</ParamField>
+
+<ParamField path="parameters" type="object" required>
+  Component parameters passed in the request.
+</ParamField>
+
+#### Example
+
+```typescript
+app.on('component-retrieved', (data) => {
+  console.log(
+    `Component ${data.name}@${data.requestVersion} retrieved in ${data.duration}ms`
+  );
+  
+  // Track component usage
+  analytics.track('component-usage', {
+    name: data.name,
+    version: data.requestVersion,
+    duration: data.duration,
+    parameters: data.parameters
+  });
+  
+  // Alert on slow components
+  if (data.duration > 2000) {
+    alerting.send({
+      title: 'Slow component retrieval',
+      component: data.name,
+      version: data.requestVersion,
+      duration: data.duration
+    });
+  }
+});
+```
+
+---
+
+### component-published
+
+Fired when a component is successfully published to the registry.
+
+#### Event Data
+
+<ParamField path="componentName" type="string" required>
+  Name of the published component.
+</ParamField>
+
+<ParamField path="componentVersion" type="string" required>
+  Version of the published component.
+</ParamField>
+
+<ParamField path="componentFolder" type="string" required>
+  Path to the component folder in storage.
+</ParamField>
+
+<ParamField path="packageJson" type="Component" required>
+  Complete package.json of the published component.
+</ParamField>
+
+<ParamField path="user" type="string">
+  Username of the publisher (if authentication is enabled).
+</ParamField>
+
+#### Example
+
+```typescript
+app.on('component-published', (data) => {
+  console.log(
+    `Component ${data.componentName}@${data.componentVersion} published` +
+    (data.user ? ` by ${data.user}` : '')
+  );
+  
+  // Notify team
+  notifications.send({
+    channel: '#components',
+    message: `New component published: ${data.componentName}@${data.componentVersion}`,
+    metadata: {
+      user: data.user,
+      folder: data.componentFolder,
+      dependencies: data.packageJson.dependencies
+    }
+  });
+  
+  // Track component versions
+  database.insert('component_versions', {
+    name: data.componentName,
+    version: data.componentVersion,
+    publishedAt: new Date(),
+    publishedBy: data.user,
+    packageJson: data.packageJson
+  });
+});
+```
+
+---
+
+### data-provider-error
+
+Fired when a component's data provider (server-side logic) encounters an error.
+
+#### Event Data
+
+<ParamField path="name" type="string" required>
+  Component name.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Component version.
+</ParamField>
+
+<ParamField path="requestVersion" type="string" required>
+  Requested component version.
+</ParamField>
+
+<ParamField path="parameters" type="object" required>
+  Component parameters passed in the request.
+</ParamField>
+
+<ParamField path="status" type="number" required>
+  HTTP status code of the error.
+</ParamField>
+
+<ParamField path="error" type="Error" required>
+  Error object.
+</ParamField>
+
+#### Example
+
+```typescript
+app.on('data-provider-error', (data) => {
+  console.error(
+    `Data provider error in ${data.name}@${data.version}:`,
+    data.error.message
+  );
+  
+  // Track component errors
+  errorTracker.captureException(data.error, {
+    tags: {
+      component: data.name,
+      version: data.version,
+      requestVersion: data.requestVersion
+    },
+    extra: {
+      parameters: data.parameters,
+      status: data.status
+    }
+  });
+  
+  // Alert component owner
+  if (data.status >= 500) {
+    alerting.notifyOwner(data.name, {
+      error: data.error.message,
+      version: data.version,
+      parameters: data.parameters
+    });
+  }
+});
+```
+
+## Complete Monitoring Example
+
+Here's a complete example that sets up comprehensive monitoring for a production registry:
+
+```typescript
+import registry from 'oc';
+
+const app = registry({
+  baseUrl: 'https://components.mycompany.com/',
+  port: 3000,
+  verbosity: 1,
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  }
+});
+
+// Startup monitoring
+app.on('start', () => {
+  console.log('✅ Registry started successfully');
+  metrics.gauge('registry.status', 1);
+  notifications.send('Registry started');
+});
+
+// Error monitoring
+app.on('error', (data) => {
+  console.error(`❌ Registry error [${data.code}]: ${data.message}`);
+  metrics.increment('registry.errors', 1, [`code:${data.code}`]);
+  errorTracker.captureError({
+    code: data.code,
+    message: data.message,
+    timestamp: new Date()
+  });
+});
+
+// Request monitoring
+app.on('request', (data) => {
+  const tags = [
+    `method:${data.method}`,
+    `status:${data.statusCode}`,
+    `path:${data.path}`
+  ];
+  
+  metrics.increment('registry.requests', 1, tags);
+  metrics.histogram('registry.request.duration', data.duration, tags);
+  
+  if (data.statusCode >= 400) {
+    console.warn(
+      `⚠️  ${data.method} ${data.path} - ${data.statusCode} ` +
+      `(${data.duration}ms)${data.errorCode ? ` [${data.errorCode}]` : ''}`
+    );
+  }
+});
+
+// Cache monitoring
+app.on('cache-poll', (duration) => {
+  metrics.histogram('registry.cache.poll.duration', duration);
+  
+  if (duration > 5000) {
+    console.warn(`⚠️  Cache poll took ${duration}ms`);
+  }
+});
+
+// Component usage tracking
+app.on('component-retrieved', (data) => {
+  const tags = [
+    `component:${data.name}`,
+    `version:${data.requestVersion}`
+  ];
+  
+  metrics.increment('registry.components.retrieved', 1, tags);
+  metrics.histogram('registry.components.duration', data.duration, tags);
+  
+  // Track popular components
+  analytics.track('component-usage', {
+    name: data.name,
+    version: data.requestVersion,
+    duration: data.duration
+  });
+});
+
+// Component publishing tracking
+app.on('component-published', (data) => {
+  console.log(
+    `📦 Published ${data.componentName}@${data.componentVersion}` +
+    (data.user ? ` by ${data.user}` : '')
+  );
+  
+  metrics.increment('registry.components.published', 1, [
+    `component:${data.componentName}`
+  ]);
+  
+  // Notify team
+  notifications.send({
+    channel: '#components',
+    message: `New component: ${data.componentName}@${data.componentVersion}`,
+    user: data.user
+  });
+  
+  // Store in database
+  database.insert('component_versions', {
+    name: data.componentName,
+    version: data.componentVersion,
+    publishedAt: new Date(),
+    publishedBy: data.user
+  });
+});
+
+// Component error tracking
+app.on('data-provider-error', (data) => {
+  console.error(
+    `❌ Data provider error: ${data.name}@${data.version} - ${data.error.message}`
+  );
+  
+  const tags = [
+    `component:${data.name}`,
+    `version:${data.version}`,
+    `status:${data.status}`
+  ];
+  
+  metrics.increment('registry.components.errors', 1, tags);
+  
+  errorTracker.captureException(data.error, {
+    tags: {
+      component: data.name,
+      version: data.version
+    },
+    extra: {
+      parameters: data.parameters,
+      status: data.status
+    }
+  });
+});
+
+// Start the registry
+app.start((err, data) => {
+  if (err) {
+    console.error('Failed to start registry:', err);
+    process.exit(1);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('Shutting down registry...');
+  metrics.gauge('registry.status', 0);
+  
+  app.close((err) => {
+    if (err) {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    }
+    console.log('Registry closed gracefully');
+    process.exit(0);
+  });
+});
+```
+
+## Event Handler Management
+
+While the registry provides an `off()` method internally, it's not exposed in the public API. Event handlers remain active for the lifetime of the registry instance.
+
+If you need to conditionally handle events, use control flow within your handlers:
+
+```typescript
+let shouldTrack = true;
+
+app.on('component-retrieved', (data) => {
+  if (!shouldTrack) return;
+  
+  analytics.track('component-usage', data);
+});
+
+// Later, disable tracking
+shouldTrack = false;
+```
+
+## TypeScript Support
+
+All events are fully typed. The event data types are inferred based on the event name:
+
+```typescript
+import registry from 'oc';
+
+const app = registry({ /* ... */ });
+
+// TypeScript knows the shape of each event's data
+app.on('error', (data) => {
+  // data.code: string
+  // data.message: string
+  console.error(data.code, data.message);
+});
+
+app.on('component-retrieved', (data) => {
+  // data.name: string
+  // data.requestVersion: string
+  // data.duration: number
+  // etc.
+  console.log(data.name, data.requestVersion);
+});
+```

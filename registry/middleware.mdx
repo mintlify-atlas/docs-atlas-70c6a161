@@ -1,0 +1,526 @@
+---
+title: Middleware
+description: Extend Registry behavior with Express middleware
+---
+
+The Registry is built on Express.js and supports standard Express middleware for request handling, logging, error handling, and more.
+
+## Overview
+
+The Registry automatically applies several middleware functions during initialization:
+
+```javascript
+src/registry/middleware/index.ts:20
+```
+
+- **Request handler**: Tracks request timing and fires events
+- **Cookie parser**: Parses cookies from requests
+- **Body parsers**: Parses JSON and URL-encoded request bodies
+- **CORS**: Enables cross-origin resource sharing
+- **File uploads**: Handles multipart form data for component publishing
+- **Base URL handler**: Manages dynamic base URL resolution
+- **Discovery handler**: Controls discovery UI/API availability
+- **Morgan logger**: HTTP request logging (when `verbosity > 0`)
+- **Error handler**: Development-mode error pages (when `local: true`)
+
+## Built-in Middleware
+
+### Request Handler
+
+Tracks request timing and fires the `request` event:
+
+```javascript
+registry.on('request', (data) => {
+  console.log(`${data.method} ${data.path} - ${data.statusCode} (${data.duration}ms)`);
+});
+```
+
+Event data:
+
+```typescript
+{
+  body: unknown;
+  duration: number;           // Request duration in ms
+  headers: IncomingHttpHeaders;
+  method: string;             // HTTP method
+  path: string;               // Request path
+  relativeUrl: string;
+  query: Record<string, unknown>;
+  url: string;                // Full URL
+  statusCode: number;
+  errorDetails?: string;
+  errorCode?: string;
+}
+```
+
+### CORS Middleware
+
+Enables cross-origin requests:
+
+```javascript
+src/registry/middleware/cors.ts
+```
+
+The CORS middleware:
+- Allows all origins (`Access-Control-Allow-Origin: *`)
+- Allows credentials
+- Supports common HTTP methods
+- Handles preflight OPTIONS requests
+
+No additional configuration is needed.
+
+### Base URL Handler
+
+Resolves the base URL for each request:
+
+```javascript
+src/registry/middleware/base-url-handler.ts
+```
+
+When `baseUrlFunc` is configured:
+
+```javascript
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  baseUrlFunc: ({ host, secure }) => {
+    // Use dynamic host-based URLs
+    const protocol = secure ? 'https' : 'http';
+    return `${protocol}://${host}/`;
+  }
+});
+```
+
+The middleware calls `baseUrlFunc` for each request and updates `res.conf.baseUrl`.
+
+### Discovery Handler
+
+Controls discovery availability:
+
+```javascript
+src/registry/middleware/discovery-handler.ts
+```
+
+When `discoveryFunc` is configured:
+
+```javascript
+const registry = oc.registry({
+  discovery: true,
+  discoveryFunc: ({ host, secure }) => {
+    // Only allow discovery on internal network
+    return host?.startsWith('192.168.') || host === 'localhost';
+  }
+});
+```
+
+The middleware evaluates `discoveryFunc` and updates `res.conf.discovery` accordingly.
+
+### File Upload Middleware
+
+Handles multipart form data for component publishing:
+
+```javascript
+src/registry/middleware/file-uploads.ts
+```
+
+Automatically processes `PUT /:component/:version` requests with file attachments.
+
+### Compression Middleware
+
+The Registry includes compression support:
+
+```javascript
+src/registry/middleware/compression.ts
+```
+
+Automatically compresses responses with gzip or brotli based on the `Accept-Encoding` header.
+
+## Custom Middleware
+
+Add custom middleware by accessing the Express app:
+
+### Via Registry Start
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+registry.start((err, { app, server }) => {
+  if (err) {
+    console.error(err);
+    return;
+  }
+  
+  // Too late! Routes are already registered.
+  // Middleware added here runs AFTER registry routes.
+});
+```
+
+**Warning**: Middleware added in the `start` callback runs **after** registry routes are registered, so it won't affect component requests.
+
+### Via Direct App Access
+
+Access the app before calling `start()`:
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+// Access app directly
+registry.app.use((req, res, next) => {
+  console.log(`Request: ${req.method} ${req.path}`);
+  next();
+});
+
+registry.start((err) => {
+  // ...
+});
+```
+
+This middleware runs **before** the Registry's middleware.
+
+### Ordering Middleware
+
+Middleware executes in the order it's registered:
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+// 1. Runs first
+registry.app.use((req, res, next) => {
+  req.startTime = Date.now();
+  next();
+});
+
+// 2. Runs second
+registry.app.use((req, res, next) => {
+  console.log('Before registry');
+  next();
+});
+
+// 3. Registry middleware and routes
+registry.start((err) => { /* ... */ });
+
+// 4. Runs last (after registry routes)
+registry.app.use((req, res, next) => {
+  console.log('After registry');
+  next();
+});
+```
+
+## Common Use Cases
+
+### Request Logging
+
+Log all requests:
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+registry.app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
+
+registry.start(...);
+```
+
+Or use Morgan (built-in when `verbosity > 0`):
+
+```javascript
+const registry = oc.registry({
+  verbosity: 1 // Enables Morgan logging
+});
+```
+
+### Authentication Middleware
+
+Add authentication to specific routes:
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+// Authenticate admin endpoints
+registry.app.use('/admin', (req, res, next) => {
+  const token = req.headers.authorization;
+  
+  if (!isValidToken(token)) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  
+  next();
+});
+
+// Add admin routes
+registry.app.get('/admin/stats', (req, res) => {
+  res.json({ /* ... */ });
+});
+
+registry.start(...);
+```
+
+### Rate Limiting
+
+Limit request rates:
+
+```javascript
+const rateLimit = require('express-rate-limit');
+
+const registry = oc.registry({ /* ... */ });
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests, please try again later'
+});
+
+registry.app.use(limiter);
+
+registry.start(...);
+```
+
+### Request ID Tracking
+
+Add request IDs for debugging:
+
+```javascript
+const { v4: uuidv4 } = require('uuid');
+
+const registry = oc.registry({ /* ... */ });
+
+registry.app.use((req, res, next) => {
+  req.id = req.headers['x-request-id'] || uuidv4();
+  res.setHeader('X-Request-ID', req.id);
+  next();
+});
+
+registry.app.use((req, res, next) => {
+  console.log(`[${req.id}] ${req.method} ${req.path}`);
+  next();
+});
+
+registry.start(...);
+```
+
+### Response Time Headers
+
+Add response time headers:
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+registry.app.use((req, res, next) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    res.setHeader('X-Response-Time', `${duration}ms`);
+  });
+  
+  next();
+});
+
+registry.start(...);
+```
+
+### Custom Headers
+
+Add security or cache headers:
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+registry.app.use((req, res, next) => {
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
+  // Cache headers for static assets
+  if (req.path.includes('/static/')) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+  
+  next();
+});
+
+registry.start(...);
+```
+
+### Error Handling
+
+Add custom error handling:
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+registry.start((err, { app }) => {
+  if (err) {
+    console.error(err);
+    return;
+  }
+  
+  // Error handler runs after all routes
+  app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    
+    res.status(err.status || 500).json({
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  });
+});
+```
+
+### Metrics Collection
+
+Collect metrics with Prometheus:
+
+```javascript
+const promClient = require('prom-client');
+
+const registry = oc.registry({ /* ... */ });
+
+const httpRequestDuration = new promClient.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'path', 'status']
+});
+
+registry.app.use((req, res, next) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    httpRequestDuration.labels(req.method, req.path, res.statusCode).observe(duration);
+  });
+  
+  next();
+});
+
+registry.app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', promClient.register.contentType);
+  res.end(await promClient.register.metrics());
+});
+
+registry.start(...);
+```
+
+## Middleware Best Practices
+
+### 1. Order Matters
+
+Register middleware in the correct order:
+
+```javascript
+// ✅ Correct order
+registry.app.use(logger);           // 1. Log
+registry.app.use(authenticate);     // 2. Auth
+registry.app.use(rateLimit);        // 3. Rate limit
+registry.start(...);                // 4. Registry routes
+```
+
+### 2. Call `next()`
+
+Always call `next()` or send a response:
+
+```javascript
+// ❌ Bad - hangs forever
+registry.app.use((req, res, next) => {
+  console.log(req.path);
+  // Forgot to call next()!
+});
+
+// ✅ Good
+registry.app.use((req, res, next) => {
+  console.log(req.path);
+  next();
+});
+```
+
+### 3. Handle Errors
+
+Catch errors and pass to `next()`:
+
+```javascript
+registry.app.use(async (req, res, next) => {
+  try {
+    await doSomethingAsync();
+    next();
+  } catch (error) {
+    next(error); // Pass to error handler
+  }
+});
+```
+
+### 4. Use Path Filters
+
+Limit middleware to specific paths:
+
+```javascript
+// Only apply to /api/* routes
+registry.app.use('/api', authenticate);
+
+// Only apply to specific method
+registry.app.post('/api/*', validateBody);
+```
+
+### 5. Avoid Blocking Operations
+
+Don't block the event loop:
+
+```javascript
+// ❌ Bad - blocks event loop
+registry.app.use((req, res, next) => {
+  const data = fs.readFileSync('./data.json'); // Blocking!
+  next();
+});
+
+// ✅ Good - async
+registry.app.use(async (req, res, next) => {
+  const data = await fs.promises.readFile('./data.json');
+  next();
+});
+```
+
+## Custom Routes
+
+Add custom routes via the `routes` config option:
+
+```javascript
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: { /* ... */ },
+  routes: [
+    {
+      route: '/health',
+      method: 'GET',
+      handler: (req, res) => {
+        res.json({ status: 'healthy', uptime: process.uptime() });
+      }
+    },
+    {
+      route: '/metrics',
+      method: 'GET',
+      handler: './handlers/metrics.js' // Load from file
+    }
+  ]
+});
+```
+
+See [Configuration - routes](/registry/configuration#routes) for details.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="bolt" href="/registry/events">
+    Subscribe to lifecycle events
+  </Card>
+  <Card title="Configuration" icon="gear" href="/registry/configuration">
+    Explore configuration options
+  </Card>
+  <Card title="Authentication" icon="lock" href="/registry/authentication">
+    Implement authentication
+  </Card>
+  <Card title="Storage Adapters" icon="database" href="/registry/storage-adapters">
+    Configure storage backends
+  </Card>
+</CardGroup>

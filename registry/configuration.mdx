@@ -1,0 +1,755 @@
+---
+title: Configuration Options
+description: Complete reference for Registry configuration options
+---
+
+This page documents all configuration options for the OpenComponents Registry.
+
+## Core Options
+
+### `baseUrl`
+
+<ParamField path="baseUrl" type="string" required>
+  Public base URL where the Registry is accessible to consumers. Must include the configured `prefix` at the end.
+</ParamField>
+
+```javascript
+{
+  baseUrl: 'https://components.mycompany.com/',
+  prefix: '/' // baseUrl must end with '/'
+}
+
+{
+  baseUrl: 'https://example.com/components/',
+  prefix: '/components/' // baseUrl must end with '/components/'
+}
+```
+
+The sanitizer automatically appends the prefix if it's missing from `baseUrl`.
+
+### `baseUrlFunc`
+
+<ParamField path="baseUrlFunc" type="function">
+  Dynamically compute the `baseUrl` for each request. Overrides the static `baseUrl` when provided.
+</ParamField>
+
+```javascript
+{
+  baseUrlFunc: ({ host, secure }) => {
+    const protocol = secure ? 'https' : 'http';
+    return `${protocol}://${host}/`;
+  }
+}
+```
+
+**Parameters:**
+- `host` (string): Request hostname
+- `secure` (boolean): Whether the request uses HTTPS
+
+### `port`
+
+<ParamField path="port" type="number | string" default="process.env.PORT || 3000">
+  Port the HTTP server listens on.
+</ParamField>
+
+```javascript
+{
+  port: 8080
+}
+```
+
+### `prefix`
+
+<ParamField path="prefix" type="string" default="'/'">
+  URL path prefix for all Registry endpoints. Must start and end with a slash.
+</ParamField>
+
+```javascript
+{
+  prefix: '/components/',
+  baseUrl: 'https://example.com/components/'
+}
+```
+
+All endpoints will be prefixed: `GET /components/:component/:version`
+
+### `local`
+
+<ParamField path="local" type="boolean" required>
+  Whether to serve components from the local filesystem (`true`) or cloud storage (`false`).
+</ParamField>
+
+```javascript
+// Development
+{
+  local: true,
+  path: './components'
+}
+
+// Production
+{
+  local: false,
+  storage: { ... }
+}
+```
+
+### `path`
+
+<ParamField path="path" type="string">
+  Absolute path to the directory containing component folders. Required when `local: true`.
+</ParamField>
+
+```javascript
+{
+  local: true,
+  path: '/absolute/path/to/components'
+}
+```
+
+### `verbosity`
+
+<ParamField path="verbosity" type="number" default="0">
+  Console logging level. `0` = silent, `1+` = verbose.
+</ParamField>
+
+```javascript
+{
+  verbosity: 1 // Log startup info and requests
+}
+```
+
+## Storage Configuration
+
+### `storage`
+
+<ParamField path="storage" type="object">
+  Storage adapter configuration for cloud storage. Required when `local: false`.
+</ParamField>
+
+```javascript
+{
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  }
+}
+```
+
+<ParamField path="storage.adapter" type="function" required>
+  Storage adapter factory function. See [Storage Adapters](/registry/storage-adapters).
+</ParamField>
+
+<ParamField path="storage.options" type="object" required>
+  Adapter-specific options. Must include `componentsDir`.
+</ParamField>
+
+### `s3`
+
+<ParamField path="s3" type="object">
+  Shorthand S3 configuration. Automatically creates an S3 storage adapter.
+</ParamField>
+
+```javascript
+{
+  s3: {
+    bucket: 'my-components',
+    region: 'us-east-1',
+    componentsDir: 'components',
+    key: process.env.AWS_ACCESS_KEY_ID,
+    secret: process.env.AWS_SECRET_ACCESS_KEY
+  }
+}
+```
+
+<ParamField path="s3.bucket" type="string" required>
+  S3 bucket name
+</ParamField>
+
+<ParamField path="s3.region" type="string" required>
+  AWS region
+</ParamField>
+
+<ParamField path="s3.componentsDir" type="string" required>
+  Directory prefix in the bucket
+</ParamField>
+
+<ParamField path="s3.key" type="string">
+  AWS access key ID (uses AWS SDK defaults if omitted)
+</ParamField>
+
+<ParamField path="s3.secret" type="string">
+  AWS secret access key (uses AWS SDK defaults if omitted)
+</ParamField>
+
+### `tempDir`
+
+<ParamField path="tempDir" type="string" default="os.tmpdir()">
+  Directory for temporary files during component publishing.
+</ParamField>
+
+```javascript
+{
+  tempDir: '/tmp/oc-registry'
+}
+```
+
+## Component Options
+
+### `components`
+
+<ParamField path="components" type="string[]">
+  Restrict the Registry to serve only the specified component names.
+</ParamField>
+
+```javascript
+{
+  components: ['header', 'footer', 'navigation']
+}
+```
+
+Components not in this list will return 404.
+
+### `dependencies`
+
+<ParamField path="dependencies" type="string[]" default="[]">
+  npm packages that components can `require()` at runtime.
+</ParamField>
+
+```javascript
+{
+  dependencies: ['lodash', 'axios', 'date-fns']
+}
+```
+
+Components can then use:
+
+```javascript
+const _ = require('lodash');
+const axios = require('axios');
+```
+
+### `env`
+
+<ParamField path="env" type="object" default="{}">
+  Environment variables passed to components in `context.env`.
+</ParamField>
+
+```javascript
+{
+  env: {
+    API_KEY: process.env.API_KEY,
+    API_URL: 'https://api.example.com',
+    FEATURE_FLAG: 'true'
+  }
+}
+```
+
+Components access via:
+
+```javascript
+module.exports.data = (context, callback) => {
+  const apiKey = context.env.API_KEY;
+  // ...
+};
+```
+
+### `executionTimeout`
+
+<ParamField path="executionTimeout" type="number">
+  Maximum execution time of a component's server-side logic, in seconds. Returns 500 if exceeded.
+</ParamField>
+
+```javascript
+{
+  executionTimeout: 5 // 5 seconds
+}
+```
+
+### `plugins`
+
+<ParamField path="plugins" type="object">
+  Plugins initialized for this Registry. Populated via `registry.register()`. Read-only.
+</ParamField>
+
+```javascript
+// Set via registry.register(), not directly in config
+registry.register(myPlugin);
+```
+
+### `templates`
+
+<ParamField path="templates" type="Template[]" default="[]">
+  Template engines available for rendering components.
+</ParamField>
+
+```javascript
+{
+  templates: [
+    require('oc-template-react'),
+    require('oc-template-vue')
+  ]
+}
+```
+
+## Discovery Options
+
+### `discovery`
+
+<ParamField path="discovery" type="boolean | object" default="true">
+  Enable/disable the discovery UI and API.
+</ParamField>
+
+```javascript
+// Boolean: enable/disable UI (API always enabled)
+{
+  discovery: false // Disable UI
+}
+
+// Object: fine-grained control
+{
+  discovery: {
+    ui: true,
+    api: true,
+    robots: true,
+    experimental: true,
+    validate: false
+  }
+}
+```
+
+<ParamField path="discovery.ui" type="boolean" default="true">
+  Enable the HTML discovery page at `GET /`
+</ParamField>
+
+<ParamField path="discovery.api" type="boolean" default="true">
+  Enable discovery API endpoints (`/~registry/*`)
+</ParamField>
+
+<ParamField path="discovery.robots" type="boolean" default="true">
+  Add `<meta name="robots" content="index, follow">` to the discovery page
+</ParamField>
+
+<ParamField path="discovery.experimental" type="boolean" default="true">
+  Show experimental components in the API
+</ParamField>
+
+<ParamField path="discovery.validate" type="boolean" default="false">
+  Enable the `POST /~registry/validate` endpoint
+</ParamField>
+
+### `discoveryFunc`
+
+<ParamField path="discoveryFunc" type="function">
+  Dynamically enable/disable discovery per request.
+</ParamField>
+
+```javascript
+{
+  discoveryFunc: ({ host, secure }) => {
+    // Only allow discovery on localhost
+    return host === 'localhost';
+  }
+}
+```
+
+## Publishing Options
+
+### `publishAuth`
+
+<ParamField path="publishAuth" type="object">
+  Authentication strategy for component publishing. See [Authentication](/registry/authentication).
+</ParamField>
+
+```javascript
+{
+  publishAuth: {
+    type: 'basic',
+    username: 'admin',
+    password: 'secret'
+  }
+}
+```
+
+### `publishValidation`
+
+<ParamField path="publishValidation" type="function" default="() => ({ isValid: true })">
+  Custom validation logic executed during component publishing.
+</ParamField>
+
+```javascript
+{
+  publishValidation: (packageJson, { user }) => {
+    // Enforce naming convention
+    if (!packageJson.name.startsWith('my-company-')) {
+      return {
+        isValid: false,
+        error: 'Component names must start with "my-company-"'
+      };
+    }
+    
+    // Require specific user for certain components
+    if (packageJson.name === 'critical-component' && user !== 'admin') {
+      return {
+        isValid: false,
+        error: 'Only admin can publish critical-component'
+      };
+    }
+    
+    return { isValid: true };
+  }
+}
+```
+
+**Parameters:**
+- `packageJson` (object): Component's `package.json` data
+- `context.user` (string): Authenticated username (if auth is enabled)
+
+**Returns:**
+- `{ isValid: true }` to allow publishing
+- `{ isValid: false, error: 'message' }` to reject
+
+### `postRequestPayloadSize`
+
+<ParamField path="postRequestPayloadSize" type="string | number">
+  Maximum `Content-Length` for publish requests. Accepts byte values like `'10mb'`.
+</ParamField>
+
+```javascript
+{
+  postRequestPayloadSize: '50mb'
+}
+```
+
+### `tarExtractMode`
+
+<ParamField path="tarExtractMode" type="number" default="0o766">
+  File and directory mode (octal) applied when extracting component tarballs.
+</ParamField>
+
+```javascript
+{
+  tarExtractMode: 0o755
+}
+```
+
+## HTTP Options
+
+### `timeout`
+
+<ParamField path="timeout" type="number" default="120000">
+  HTTP request timeout in milliseconds.
+</ParamField>
+
+```javascript
+{
+  timeout: 30000 // 30 seconds
+}
+```
+
+### `keepAliveTimeout`
+
+<ParamField path="keepAliveTimeout" type="number" default="5000">
+  Milliseconds the HTTP server keeps idle connections alive.
+</ParamField>
+
+```javascript
+{
+  keepAliveTimeout: 10000 // 10 seconds
+}
+```
+
+## Client Options
+
+### `compileClient`
+
+<ParamField path="compileClient" type="boolean | object" default="true">
+  Pre-compile the `oc-client` library. Set to `false` to disable.
+</ParamField>
+
+```javascript
+// Disable client compilation
+{
+  compileClient: false
+}
+
+// Configure client compilation
+{
+  compileClient: {
+    imports: {
+      'react': 'React',
+      'react-dom': 'ReactDOM'
+    }
+  }
+}
+```
+
+### `fallbackClient`
+
+<ParamField path="fallbackClient" type="boolean" default="false">
+  Enable fallback client to be used when the primary client fails.
+</ParamField>
+
+```javascript
+{
+  fallbackClient: true
+}
+```
+
+### `fallbackRegistryUrl`
+
+<ParamField path="fallbackRegistryUrl" type="string">
+  URL of a secondary Registry to query when a component is not found.
+</ParamField>
+
+```javascript
+{
+  fallbackRegistryUrl: 'https://backup-registry.example.com/'
+}
+```
+
+Trailing slash is added automatically.
+
+### `customHeadersToSkipOnWeakVersion`
+
+<ParamField path="customHeadersToSkipOnWeakVersion" type="string[]" default="[]">
+  Header names (lowercase) to omit when serving a fallback/weak component version.
+</ParamField>
+
+```javascript
+{
+  customHeadersToSkipOnWeakVersion: ['x-custom-cache', 'x-version']
+}
+```
+
+## Caching Options
+
+### `pollingInterval`
+
+<ParamField path="pollingInterval" type="number" default="5">
+  Seconds between each poll of the storage adapter for component changes.
+</ParamField>
+
+```javascript
+{
+  pollingInterval: 10 // Poll every 10 seconds
+}
+```
+
+### `refreshInterval`
+
+<ParamField path="refreshInterval" type="number">
+  Seconds between each refresh of the internal component list cache.
+</ParamField>
+
+```javascript
+{
+  refreshInterval: 60 // Refresh every 60 seconds
+}
+```
+
+This value is passed to the storage adapter.
+
+## Development Options
+
+### `hotReloading`
+
+<ParamField path="hotReloading" type="boolean" default="!!local">
+  Enable hot-reloading of component code. Defaults to `true` when `local: true`.
+</ParamField>
+
+```javascript
+{
+  local: true,
+  hotReloading: true // Enabled by default
+}
+```
+
+### `liveReloadPort`
+
+<ParamField path="liveReloadPort" type="number">
+  TCP port of the LiveReload server used by the preview page.
+</ParamField>
+
+```javascript
+{
+  liveReloadPort: 35729
+}
+```
+
+### `preload`
+
+<ParamField path="preload" type="string">
+  JavaScript code or filepath to include in the preview HTML's `<head>` section.
+</ParamField>
+
+```javascript
+// Inline JavaScript
+{
+  preload: 'console.log("Preview loaded");'
+}
+
+// External file
+{
+  preload: './scripts/preview-setup.js'
+}
+```
+
+## Advanced Options
+
+### `routes`
+
+<ParamField path="routes" type="Array<Route>">
+  Additional Express routes to mount on the Registry application.
+</ParamField>
+
+```javascript
+{
+  routes: [
+    {
+      route: '/health',
+      method: 'GET',
+      handler: (req, res) => res.json({ status: 'ok' })
+    },
+    {
+      route: '/metrics',
+      method: 'GET',
+      handler: './handlers/metrics.js' // Load from file
+    }
+  ]
+}
+```
+
+<ParamField path="routes[].route" type="string" required>
+  Route path (e.g., `/health`)
+</ParamField>
+
+<ParamField path="routes[].method" type="string" required>
+  HTTP method (`GET`, `POST`, `PUT`, `PATCH`, `HEAD`)
+</ParamField>
+
+<ParamField path="routes[].handler" type="function | string" required>
+  Express route handler function or path to handler file
+</ParamField>
+
+### `beforePublish`
+
+<ParamField path="beforePublish" type="function">
+  Express middleware executed before component publishing. Automatically set from `publishAuth`. Read-only.
+</ParamField>
+
+### `compiledClient`
+
+<ParamField path="compiledClient" type="object">
+  Pre-compiled `oc-client` library. Set automatically by the framework. Read-only.
+</ParamField>
+
+## Complete Example
+
+Here's a comprehensive Registry configuration:
+
+```javascript
+const oc = require('oc');
+
+const registry = oc.registry({
+  // Core
+  baseUrl: 'https://components.mycompany.com/',
+  port: 3000,
+  prefix: '/',
+  verbosity: 1,
+  
+  // Storage
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: process.env.S3_BUCKET,
+      region: process.env.AWS_REGION,
+      componentsDir: 'components'
+    }
+  },
+  
+  // Components
+  dependencies: ['lodash', 'axios', 'date-fns'],
+  env: {
+    API_URL: process.env.API_URL,
+    FEATURE_FLAGS: process.env.FEATURE_FLAGS
+  },
+  executionTimeout: 10,
+  templates: [
+    require('oc-template-react'),
+    require('oc-template-vue')
+  ],
+  
+  // Discovery
+  discovery: {
+    ui: true,
+    api: true,
+    robots: true,
+    experimental: true,
+    validate: false
+  },
+  
+  // Publishing
+  publishAuth: {
+    type: 'basic',
+    logins: [
+      { username: 'admin', password: process.env.ADMIN_PASSWORD },
+      { username: 'ci', password: process.env.CI_PASSWORD }
+    ]
+  },
+  publishValidation: (packageJson, { user }) => {
+    if (!packageJson.name.startsWith('company-')) {
+      return {
+        isValid: false,
+        error: 'Component names must start with "company-"'
+      };
+    }
+    return { isValid: true };
+  },
+  postRequestPayloadSize: '50mb',
+  
+  // HTTP
+  timeout: 30000,
+  keepAliveTimeout: 10000,
+  
+  // Caching
+  pollingInterval: 10,
+  refreshInterval: 60,
+  
+  // Advanced
+  routes: [
+    {
+      route: '/health',
+      method: 'GET',
+      handler: (req, res) => res.json({ status: 'healthy' })
+    }
+  ]
+});
+
+registry.start((err) => {
+  if (err) {
+    console.error('Failed to start:', err);
+    process.exit(1);
+  }
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Storage Adapters" icon="database" href="/registry/storage-adapters">
+    Configure cloud storage backends
+  </Card>
+  <Card title="Authentication" icon="lock" href="/registry/authentication">
+    Secure component publishing
+  </Card>
+  <Card title="Middleware" icon="code" href="/registry/middleware">
+    Extend Registry with middleware
+  </Card>
+  <Card title="Events" icon="bolt" href="/registry/events">
+    Subscribe to lifecycle events
+  </Card>
+</CardGroup>

@@ -1,0 +1,386 @@
+---
+title: 'Client Methods'
+description: 'Detailed documentation of OpenComponents Client methods'
+icon: 'code'
+---
+
+## Client Constructor
+
+The Client is initialized with a configuration object that specifies the templates to support.
+
+### Syntax
+
+```typescript
+Client(config: ClientConfig): ClientInstance
+```
+
+### Parameters
+
+<ParamField path="config" type="ClientConfig" required>
+  Configuration object for the client
+
+  <Expandable title="ClientConfig properties">
+    <ParamField path="templates" type="Template[]" required>
+      Array of template configurations that the client should support
+      
+      Each template object contains:
+      - `type` (string): Template type identifier (e.g., 'oc-template-handlebars')
+      - `version` (string): Template version
+      - `externals` (array): External dependencies for the template
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+Returns a `ClientInstance` object with rendering methods.
+
+### Example
+
+```typescript
+import { Client } from 'oc';
+
+const client = Client({
+  templates: [
+    {
+      type: 'oc-template-handlebars',
+      version: '6.0.25',
+      externals: []
+    },
+    {
+      type: 'oc-template-jade',
+      version: '7.0.6',
+      externals: []
+    },
+    {
+      type: 'oc-template-es6',
+      version: '2.0.0',
+      externals: ['react', 'react-dom']
+    }
+  ]
+});
+```
+
+---
+
+## renderTemplate
+
+Renders a compiled template with the provided data and returns HTML.
+
+### Syntax
+
+```typescript
+client.renderTemplate(
+  template: CompiledTemplate,
+  data: any,
+  options: RenderOptions,
+  callback: (error: Error | null, html: string) => void
+): void
+```
+
+### Parameters
+
+<ParamField path="template" type="CompiledTemplate" required>
+  The compiled template function or object. This is typically retrieved from the component's `template.js` file after compilation.
+</ParamField>
+
+<ParamField path="data" type="any" required>
+  The data object to pass to the template. This typically includes:
+  - Component props
+  - Static path for assets
+  - Component metadata
+  - Any data returned from the component's data provider
+</ParamField>
+
+<ParamField path="options" type="RenderOptions" required>
+  Rendering options that configure how the template is rendered
+
+  <Expandable title="RenderOptions properties">
+    <ParamField path="href" type="string">
+      The component's URL endpoint
+    </ParamField>
+    
+    <ParamField path="key" type="string">
+      The template's hash key for caching
+    </ParamField>
+    
+    <ParamField path="version" type="string">
+      Component version being rendered
+    </ParamField>
+    
+    <ParamField path="name" type="string">
+      Component name
+    </ParamField>
+    
+    <ParamField path="templateType" type="string">
+      Template type (e.g., 'oc-template-handlebars', 'oc-template-jade')
+    </ParamField>
+    
+    <ParamField path="container" type="boolean">
+      Whether to wrap the component in a container element
+    </ParamField>
+    
+    <ParamField path="renderInfo" type="boolean">
+      Whether to include rendering metadata
+    </ParamField>
+    
+    <ParamField path="id" type="string">
+      Unique identifier for this render instance
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="callback" type="function" required>
+  Callback function that receives the rendered HTML or an error
+  
+  - `error` (Error | null): Error object if rendering failed, null on success
+  - `html` (string): The rendered HTML string
+</ParamField>
+
+### Example
+
+```typescript
+import { Client } from 'oc';
+import { randomUUID } from 'crypto';
+
+const client = Client({
+  templates: [
+    {
+      type: 'oc-template-handlebars',
+      version: '6.0.25',
+      externals: []
+    }
+  ]
+});
+
+// Assume we have a compiled template
+const compiledTemplate = getCompiledTemplate(); // Your template loading logic
+
+// Data to pass to the template
+const data = {
+  component: {
+    props: {
+      title: 'Hello World',
+      message: 'Welcome to OpenComponents'
+    }
+  },
+  id: randomUUID()
+};
+
+// Rendering options
+const options = {
+  href: 'http://localhost:3000/my-component/1.0.0',
+  key: 'abc123def456',
+  version: '1.0.0',
+  name: 'my-component',
+  templateType: 'oc-template-handlebars',
+  container: true,
+  renderInfo: false,
+  id: data.id
+};
+
+// Render the template
+client.renderTemplate(compiledTemplate, data, options, (error, html) => {
+  if (error) {
+    console.error('Rendering failed:', error);
+    return;
+  }
+  
+  console.log('Rendered HTML:', html);
+  // Use the HTML in your response
+});
+```
+
+### Error Handling
+
+The `renderTemplate` method handles errors through the callback pattern:
+
+```typescript
+client.renderTemplate(template, data, options, (error, html) => {
+  if (error) {
+    // Handle rendering errors
+    if (error.message.includes('Template not found')) {
+      // Template type not supported
+      return sendError(400, 'Template not supported');
+    }
+    
+    // Generic rendering error
+    return sendError(500, 'Rendering failed');
+  }
+  
+  // Success - use the HTML
+  sendResponse(html);
+});
+```
+
+### Common Use Cases
+
+<AccordionGroup>
+  <Accordion title="Rendering in Registry">
+    The OpenComponents registry uses the Client internally when rendering components:
+
+    ```typescript
+    // From get-component.ts:500-521
+    const returnResult = (template) => {
+      client.renderTemplate(
+        template,
+        data,
+        renderOptions,
+        (err, html) => {
+          if (err) {
+            return callback({
+              status: 500,
+              response: {
+                code: 'INTERNAL_SERVER_ERROR',
+                error: err
+              }
+            });
+          }
+
+          callback({
+            status: 200,
+            headers: responseHeaders,
+            response: Object.assign(response, { html })
+          });
+        }
+      );
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Custom Rendering Pipeline">
+    Build a custom component renderer:
+
+    ```typescript
+    import { Client } from 'oc';
+    import { getComponent, getTemplate } from './component-loader';
+
+    async function renderComponent(name: string, version: string, params: any) {
+      const client = Client({ templates: getRegisteredTemplates() });
+      
+      const component = await getComponent(name, version);
+      const template = await getTemplate(component.templateType);
+      
+      return new Promise((resolve, reject) => {
+        client.renderTemplate(
+          template,
+          { component: { props: params } },
+          {
+            href: `http://registry.com/${name}/${version}`,
+            key: component.hashKey,
+            version: version,
+            name: name,
+            templateType: component.templateType,
+            container: true,
+            renderInfo: false,
+            id: generateId()
+          },
+          (error, html) => {
+            if (error) reject(error);
+            else resolve(html);
+          }
+        );
+      });
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Testing Component Templates">
+    Use the Client to test component rendering:
+
+    ```typescript
+    import { Client } from 'oc';
+    import { expect } from 'chai';
+
+    describe('Component rendering', () => {
+      it('should render component correctly', (done) => {
+        const client = Client({
+          templates: [{
+            type: 'oc-template-handlebars',
+            version: '6.0.0',
+            externals: []
+          }]
+        });
+
+        const template = loadTestTemplate();
+        const data = { component: { props: { title: 'Test' } } };
+        const options = {
+          href: '/test',
+          key: 'test-key',
+          version: '1.0.0',
+          name: 'test-component',
+          templateType: 'oc-template-handlebars',
+          container: false,
+          renderInfo: false,
+          id: '123'
+        };
+
+        client.renderTemplate(template, data, options, (error, html) => {
+          expect(error).to.be.null;
+          expect(html).to.include('<h1>Test</h1>');
+          done();
+        });
+      });
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Type Definitions
+
+### ClientConfig
+
+```typescript
+interface ClientConfig {
+  templates: Template[];
+}
+```
+
+### Template
+
+```typescript
+interface Template {
+  type: string;
+  version: string;
+  externals: string[];
+}
+```
+
+### RenderOptions
+
+```typescript
+interface RenderOptions {
+  href: string;
+  key: string;
+  version: string;
+  name: string;
+  templateType: string;
+  container: boolean;
+  renderInfo: boolean;
+  id: string;
+}
+```
+
+---
+
+## Notes
+
+<Note>
+  The Client uses a callback-based API rather than Promises. If you prefer Promises, you can wrap the `renderTemplate` method using `util.promisify` or create a Promise wrapper.
+</Note>
+
+<Warning>
+  The Client is designed for server-side use only. For browser-side rendering, use the `oc-client-browser` package instead.
+</Warning>
+
+<Tip>
+  When using the Client in production, make sure to cache compiled templates to avoid recompiling them on every request. The OpenComponents registry handles this automatically.
+</Tip>
+
+## See Also
+
+- [Client Overview](/api/client/overview) - Introduction to the Client
+- [Registry API](/api-reference/introduction) - HTTP API for components
+- [Templates](https://github.com/opencomponents) - Available template types

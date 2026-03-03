@@ -1,0 +1,579 @@
+---
+title: Testing
+description: Test your OpenComponents locally and write automated tests
+---
+
+## Overview
+
+Testing OpenComponents involves both local development testing and automated unit/integration tests. This guide covers testing strategies at different levels.
+
+## Local Development Testing
+
+### Starting the Dev Server
+
+The fastest way to test components is using the local development server:
+
+```bash
+oc dev . 3000
+```
+
+This starts a local registry on port 3000 that:
+- Serves all components in the current directory
+- Watches for file changes and hot-reloads
+- Provides a preview interface for testing
+- Enables debugging with full error messages
+
+### Filter Specific Components
+
+Test only specific components:
+
+```bash
+oc dev . 3000 --components my-component,another-component
+```
+
+<Tip>
+Add this to your `package.json` for convenience:
+
+```json
+{
+  "scripts": {
+    "start": "oc dev .. --components my-component"
+  }
+}
+```
+
+Then run: `npm start`
+</Tip>
+
+### Preview Interface
+
+Navigate to `http://localhost:3000/<component-name>` to access the preview interface, which shows:
+
+<AccordionGroup>
+  <Accordion title="Live Preview">
+    Real-time rendering of your component with current parameters.
+  </Accordion>
+  
+  <Accordion title="Parameter Form">
+    Interactive form to test different parameter values. Example values from your parameter definitions are pre-filled.
+  </Accordion>
+  
+  <Accordion title="Component Info">
+    Metadata including version, parameters, dependencies, and template type.
+  </Accordion>
+  
+  <Accordion title="Debug Information">
+    Render time, server response, and error details (when available).
+  </Accordion>
+</AccordionGroup>
+
+### Testing Parameters
+
+Use the preview form to test parameter combinations:
+
+1. **Mandatory parameters**: Verify errors when omitted
+2. **Optional parameters**: Test with and without values
+3. **Default values**: Confirm defaults are applied correctly
+4. **Enum constraints**: Test valid and invalid values
+5. **Type validation**: Try different data types
+
+**Example test cases:**
+```json
+{
+  "parameters": {
+    "firstName": {
+      "type": "string",
+      "mandatory": true,
+      "example": "John"
+    },
+    "showAvatar": {
+      "type": "boolean",
+      "default": true
+    },
+    "maxItems": {
+      "type": "number",
+      "enum": [5, 10, 20],
+      "default": 10
+    }
+  }
+}
+```
+
+**Test matrix:**
+- ✅ firstName="John", showAvatar=true, maxItems=10
+- ✅ firstName="Jane", showAvatar=false, maxItems=5
+- ❌ firstName=omitted (should error)
+- ❌ maxItems=15 (should error - not in enum)
+
+### Hot Reloading
+
+The dev server automatically reloads when you change:
+
+**Template files:**
+```handlebars
+<!-- Edit template.html -->
+<div class="greeting">
+  <h1>{{message}}</h1>
+</div>
+<!-- Save → Browser auto-refreshes -->
+```
+
+**Server-side code:**
+```javascript
+// Edit server.js
+module.exports.data = function(context, callback) {
+  callback(null, { message: 'Updated!' });
+};
+// Save → Browser auto-refreshes
+```
+
+**Static assets:**
+```css
+/* Edit static/styles.css */
+.greeting { color: blue; }
+/* Save → Browser auto-refreshes */
+```
+
+<Info>
+Changes to `package.json` require restarting the dev server.
+</Info>
+
+## Unit Testing Data Providers
+
+### Test Setup
+
+Create a test file for your data provider:
+
+**Structure:**
+```
+my-component/
+├── package.json
+├── server.js
+├── template.html
+└── test/
+    └── server.test.js
+```
+
+### Basic Test Example
+
+```javascript
+// test/server.test.js
+const { data } = require('../server');
+
+describe('my-component data provider', () => {
+  it('should return greeting with firstName', (done) => {
+    const context = {
+      params: {
+        firstName: 'John',
+        lastName: 'Doe'
+      },
+      env: {},
+      plugins: {},
+      staticPath: '/static/',
+      setHeader: () => {},
+      setCookie: () => {}
+    };
+    
+    data(context, (err, result) => {
+      expect(err).toBeNull();
+      expect(result.greeting).toBe('Hello, John!');
+      expect(result.fullName).toBe('John Doe');
+      done();
+    });
+  });
+});
+```
+
+### Testing with Mock Context
+
+Create a helper to generate mock contexts:
+
+```javascript
+// test/helpers.js
+function createMockContext(overrides = {}) {
+  return {
+    params: {},
+    env: {},
+    plugins: {},
+    staticPath: '/static/',
+    setHeader: jest.fn(),
+    setCookie: jest.fn(),
+    ...overrides
+  };
+}
+
+module.exports = { createMockContext };
+```
+
+**Usage:**
+```javascript
+const { createMockContext } = require('./helpers');
+const { data } = require('../server');
+
+it('should handle missing optional parameter', (done) => {
+  const context = createMockContext({
+    params: { firstName: 'Jane' }
+  });
+  
+  data(context, (err, result) => {
+    expect(err).toBeNull();
+    expect(result.lastName).toBe('Doe'); // default value
+    done();
+  });
+});
+```
+
+### Testing Error Cases
+
+```javascript
+it('should return error when required param is missing', (done) => {
+  const context = createMockContext({
+    params: {} // missing required firstName
+  });
+  
+  data(context, (err, result) => {
+    expect(err).toBeTruthy();
+    expect(err.message).toContain('firstName is required');
+    done();
+  });
+});
+
+it('should handle API errors gracefully', (done) => {
+  const context = createMockContext({
+    params: { userId: 'invalid' }
+  });
+  
+  data(context, (err, result) => {
+    expect(err).toBeTruthy();
+    expect(err.message).toContain('User not found');
+    done();
+  });
+});
+```
+
+### Testing with Dependencies
+
+Mock external dependencies to test in isolation:
+
+```javascript
+const { data } = require('../server');
+
+jest.mock('lodash.isequal', () => {
+  return jest.fn((a, b) => a === b);
+});
+
+it('should use lodash correctly', (done) => {
+  const context = createMockContext();
+  
+  data(context, (err, result) => {
+    expect(err).toBeNull();
+    expect(result.magicNumber).toBe(5);
+    done();
+  });
+});
+```
+
+### Testing Async Operations
+
+```javascript
+it('should fetch user data from API', (done) => {
+  const mockFetch = jest.fn().mockResolvedValue({
+    json: () => Promise.resolve({ name: 'John', email: 'john@example.com' })
+  });
+  
+  global.fetch = mockFetch;
+  
+  const context = createMockContext({
+    params: { userId: 'user-123' }
+  });
+  
+  data(context, (err, result) => {
+    expect(err).toBeNull();
+    expect(result.user.name).toBe('John');
+    expect(mockFetch).toHaveBeenCalledWith('/api/users/user-123');
+    done();
+  });
+});
+```
+
+## Integration Testing
+
+### Testing Full Component Rendering
+
+Test the complete component including template rendering:
+
+```javascript
+const request = require('supertest');
+const oc = require('oc');
+
+describe('my-component integration', () => {
+  let registry;
+  
+  beforeAll(async () => {
+    // Start local registry
+    registry = oc.registry({
+      local: true,
+      path: './components',
+      port: 3001,
+      verbosity: 0
+    });
+    
+    await registry.start();
+  });
+  
+  afterAll(async () => {
+    await registry.close();
+  });
+  
+  it('should render component with parameters', async () => {
+    const response = await request(registry.app)
+      .get('/my-component')
+      .query({ firstName: 'John', lastName: 'Doe' });
+    
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('Hello, John!');
+  });
+  
+  it('should return error for missing mandatory parameter', async () => {
+    const response = await request(registry.app)
+      .get('/my-component');
+    
+    expect(response.status).toBe(400);
+  });
+});
+```
+
+### Testing Static Assets
+
+```javascript
+it('should serve static assets', async () => {
+  const response = await request(registry.app)
+    .get('/my-component/1.0.0/static/styles.css');
+  
+  expect(response.status).toBe(200);
+  expect(response.headers['content-type']).toContain('text/css');
+});
+
+it('should serve images', async () => {
+  const response = await request(registry.app)
+    .get('/my-component/1.0.0/static/logo.png');
+  
+  expect(response.status).toBe(200);
+  expect(response.headers['content-type']).toContain('image/png');
+});
+```
+
+## Mock Plugins
+
+Test components that use registry plugins using `oc.json` mocking:
+
+**oc.json:**
+```json
+{
+  "development": {
+    "plugins": {
+      "static": {
+        "logger": "console.log"
+      },
+      "dynamic": {
+        "cache": "./mocks/cache-mock.js"
+      }
+    }
+  }
+}
+```
+
+**mocks/cache-mock.js:**
+```javascript
+module.exports = {
+  get: (key, callback) => {
+    callback(null, null); // Simulate cache miss
+  },
+  set: (key, value, callback) => {
+    callback(null);
+  }
+};
+```
+
+<Info>
+See the [OcConfig documentation](/registry/configuration#development-plugins) for more details on plugin mocking.
+</Info>
+
+## Packaging Tests
+
+### Validate Package Output
+
+Test that packaging produces correct output:
+
+```bash
+oc package my-component/
+```
+
+Verify `_package/` contains:
+
+```javascript
+const fs = require('fs');
+const path = require('path');
+
+it('should create _package directory', () => {
+  const packagePath = path.join(__dirname, '../_package');
+  expect(fs.existsSync(packagePath)).toBe(true);
+});
+
+it('should include package.json', () => {
+  const pkgPath = path.join(__dirname, '../_package/package.json');
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  
+  expect(pkg.oc.packaged).toBe(true);
+  expect(pkg.oc.files.template).toBeDefined();
+});
+
+it('should compile template', () => {
+  const templatePath = path.join(__dirname, '../_package/template.js');
+  expect(fs.existsSync(templatePath)).toBe(true);
+});
+
+it('should include static assets', () => {
+  const cssPath = path.join(__dirname, '../_package/static/styles.css');
+  expect(fs.existsSync(cssPath)).toBe(true);
+});
+```
+
+## Continuous Integration
+
+### GitHub Actions Example
+
+```yaml
+name: Test Components
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test
+      
+      - name: Package components
+        run: oc package components/
+      
+      - name: Validate packages
+        run: |
+          test -d components/my-component/_package
+          test -f components/my-component/_package/package.json
+```
+
+## Testing Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Test Parameters" icon="sliders">
+    Test all parameter combinations: required, optional, defaults, and invalid values.
+  </Card>
+  
+  <Card title="Mock External Calls" icon="globe">
+    Always mock API calls and external dependencies for fast, reliable tests.
+  </Card>
+  
+  <Card title="Test Error Cases" icon="triangle-exclamation">
+    Verify error handling for missing params, API failures, and invalid data.
+  </Card>
+  
+  <Card title="Test Static Assets" icon="image">
+    Ensure static files are packaged and accessible at correct URLs.
+  </Card>
+  
+  <Card title="Use Local Registry" icon="server">
+    Test against a local registry for integration tests.
+  </Card>
+  
+  <Card title="Automate in CI" icon="robot">
+    Run tests automatically on every commit using CI/CD pipelines.
+  </Card>
+</CardGroup>
+
+## Debugging
+
+### Enable Verbose Logging
+
+```bash
+oc dev . 3000 --verbose
+```
+
+This shows detailed logs:
+- Template compilation
+- Data provider execution
+- Static asset resolution
+- Error stack traces
+
+### Browser DevTools
+
+Inspect component rendering:
+
+1. Open DevTools (F12)
+2. Check **Network** tab for:
+   - Component request/response
+   - Static asset loading
+   - HTTP status codes
+3. Check **Console** tab for:
+   - JavaScript errors
+   - Server-side errors (in response)
+
+### Server-Side Debugging
+
+Add console.log in your data provider:
+
+```javascript
+module.exports.data = function(context, callback) {
+  console.log('Params:', context.params);
+  console.log('Env:', context.env);
+  
+  const data = { /* ... */ };
+  console.log('Returning:', data);
+  
+  callback(null, data);
+};
+```
+
+Logs appear in the terminal where `oc dev` is running.
+
+### Node.js Debugger
+
+Debug with Node.js inspector:
+
+```bash
+node --inspect node_modules/.bin/oc dev . 3000
+```
+
+Then connect with Chrome DevTools or VS Code debugger.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Component Structure" icon="sitemap" href="/components/component-structure">
+    Review complete component anatomy
+  </Card>
+  
+  <Card title="Data Providers" icon="database" href="/components/data-providers">
+    Write testable data provider logic
+  </Card>
+  
+  <Card title="Parameters" icon="sliders" href="/components/parameters">
+    Define parameters with validation
+  </Card>
+  
+  <Card title="Creating Components" icon="plus" href="/components/creating-components">
+    Start building your first component
+  </Card>
+</CardGroup>

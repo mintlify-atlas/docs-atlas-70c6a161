@@ -1,0 +1,233 @@
+---
+title: 'Template Types'
+description: 'Template and TemplateInfo type definitions'
+---
+
+## Template
+
+Defines the interface for OpenComponents template engines that compile and render component views.
+
+```typescript
+export interface Template {
+  compile?: (options: CompilerOptions, cb: (err: Error | null) => void) => void;
+  getCompiledTemplate: (
+    templateString: string,
+    key: string,
+    context?: Record<string, unknown>
+  ) => CompiledTemplate;
+  getInfo: () => TemplateInfo;
+  render: (options: any, cb: (err: Error | null, data: string) => void) => void;
+}
+```
+
+<ResponseField name="compile" type="function">
+  Optional function to compile a component template during the packaging process.
+
+  ```typescript
+  (options: CompilerOptions, cb: (err: Error | null) => void) => void
+  ```
+
+  <Expandable title="CompilerOptions properties">
+    <ResponseField name="componentPackage" type="PackageJson & { oc: OcConfiguration }" required>
+      The component's package.json with OpenComponents configuration
+    </ResponseField>
+
+    <ResponseField name="componentPath" type="string" required>
+      Absolute path to the component directory
+    </ResponseField>
+
+    <ResponseField name="minify" type="boolean" required>
+      Whether to minify the compiled output
+    </ResponseField>
+
+    <ResponseField name="ocPackage" type="PackageJson" required>
+      OpenComponents CLI package.json
+    </ResponseField>
+
+    <ResponseField name="production" type="boolean" required>
+      Whether compiling for production
+    </ResponseField>
+
+    <ResponseField name="publishPath" type="string" required>
+      Path where compiled output should be written
+    </ResponseField>
+
+    <ResponseField name="verbose" type="boolean" required>
+      Whether to output verbose logging
+    </ResponseField>
+
+    <ResponseField name="watch" type="boolean" required>
+      Whether to watch for file changes
+    </ResponseField>
+  </Expandable>
+
+  <ParamField name="cb" type="(err: Error | null) => void">
+    Callback invoked when compilation completes or fails
+  </ParamField>
+</ResponseField>
+
+<ResponseField name="getCompiledTemplate" type="function" required>
+  Returns a compiled template function that can be executed with data.
+
+  ```typescript
+  (
+    templateString: string,
+    key: string,
+    context?: Record<string, unknown>
+  ) => CompiledTemplate
+  ```
+
+  <ParamField name="templateString" type="string">
+    The template source code as a string
+  </ParamField>
+
+  <ParamField name="key" type="string">
+    Unique identifier for caching the compiled template
+  </ParamField>
+
+  <ParamField name="context" type="Record<string, unknown>">
+    Optional context object passed to the template compiler
+  </ParamField>
+
+  **Returns:** A `CompiledTemplate` function that accepts model data and returns rendered HTML:
+  ```typescript
+  type CompiledTemplate = (model: unknown) => string;
+  ```
+</ResponseField>
+
+<ResponseField name="getInfo" type="() => TemplateInfo" required>
+  Returns metadata about the template engine.
+</ResponseField>
+
+<ResponseField name="render" type="function" required>
+  Renders a component with the given options.
+
+  ```typescript
+  (options: any, cb: (err: Error | null, data: string) => void) => void
+  ```
+
+  <ParamField name="options" type="any">
+    Rendering options (structure depends on the template implementation)
+  </ParamField>
+
+  <ParamField name="cb" type="(err: Error | null, data: string) => void">
+    Callback invoked with the rendered HTML or an error
+  </ParamField>
+</ResponseField>
+
+---
+
+## TemplateInfo
+
+Metadata about a template engine.
+
+```typescript
+export interface TemplateInfo {
+  externals: Array<{
+    name: string;
+    global: string | string[];
+    url: string;
+    devUrl?: string;
+  }>;
+  type: string;
+  version: string;
+}
+```
+
+<ResponseField name="externals" type="Array<object>" required>
+  External dependencies required by the template engine.
+
+  <Expandable title="external dependency properties">
+    <ResponseField name="name" type="string" required>
+      Package name of the external dependency (e.g., "react", "vue")
+    </ResponseField>
+
+    <ResponseField name="global" type="string | string[]" required>
+      Global variable name(s) the dependency exposes (e.g., "React", ["React", "ReactDOM"])
+    </ResponseField>
+
+    <ResponseField name="url" type="string" required>
+      CDN URL for the production version of the dependency
+    </ResponseField>
+
+    <ResponseField name="devUrl" type="string">
+      CDN URL for the development version (with source maps, warnings, etc.)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+  Template type identifier (e.g., "oc-template-react", "oc-template-vue")
+</ResponseField>
+
+<ResponseField name="version" type="string" required>
+  Semantic version of the template engine
+</ResponseField>
+
+---
+
+## Usage Examples
+
+### Accessing Template Info
+
+```typescript
+const template: Template = getReactTemplate();
+const info = template.getInfo();
+
+console.log(`Using template: ${info.type} v${info.version}`);
+console.log('External dependencies:', info.externals.map(e => e.name));
+```
+
+### Example TemplateInfo Object
+
+```typescript
+const reactTemplateInfo: TemplateInfo = {
+  type: 'oc-template-react',
+  version: '1.0.0',
+  externals: [
+    {
+      name: 'react',
+      global: 'React',
+      url: 'https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js',
+      devUrl: 'https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js'
+    },
+    {
+      name: 'react-dom',
+      global: 'ReactDOM',
+      url: 'https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js',
+      devUrl: 'https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js'
+    }
+  ]
+};
+```
+
+### Using a Compiled Template
+
+```typescript
+const template: Template = getReactTemplate();
+const templateString = '<div>Hello {{name}}</div>';
+const compiled = template.getCompiledTemplate(templateString, 'greeting-template');
+
+const html = compiled({ name: 'World' });
+console.log(html); // <div>Hello World</div>
+```
+
+### Rendering a Component
+
+```typescript
+const template: Template = getReactTemplate();
+
+template.render(
+  {
+    component: myComponent,
+    model: { title: 'Hello', count: 42 }
+  },
+  (err, html) => {
+    if (err) {
+      console.error('Render failed:', err);
+    } else {
+      console.log('Rendered HTML:', html);
+    }
+  }
+);
+```

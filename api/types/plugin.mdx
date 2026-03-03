@@ -1,0 +1,245 @@
+---
+title: 'Plugin Types'
+description: 'Plugin and PluginContext type definitions'
+---
+
+## Plugin
+
+Defines the structure of an OpenComponents plugin with optional context support.
+
+```typescript
+export type Plugin<T = any> = BasePLugin<T> &
+  (
+    | {
+        context?: false | undefined;
+        register: {
+          register: (
+            options: T,
+            dependencies: any,
+            next: (error?: Error) => void
+          ) => void;
+          execute: (...args: any[]) => any;
+          dependencies?: string[];
+        };
+      }
+    | {
+        context: true;
+        register: {
+          register: (
+            options: T,
+            dependencies: any,
+            next: (error?: Error) => void
+          ) => void;
+          execute: (context: PluginContext) => (params: any) => any;
+          dependencies?: string[];
+        };
+      }
+  );
+```
+
+Plugins come in two variants:
+
+### Plugin without Context
+
+When `context` is `false` or `undefined`, the plugin's execute function is called directly.
+
+```typescript
+{
+  name: string;
+  description?: string;
+  options?: T;
+  context?: false | undefined;
+  register: {
+    register: (options: T, dependencies: any, next: (error?: Error) => void) => void;
+    execute: (...args: any[]) => any;
+    dependencies?: string[];
+  };
+}
+```
+
+<ResponseField name="name" type="string" required>
+  Unique plugin identifier
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Human-readable description of the plugin's purpose
+</ResponseField>
+
+<ResponseField name="options" type="T">
+  Plugin-specific configuration options
+</ResponseField>
+
+<ResponseField name="context" type="false | undefined">
+  When false or undefined, the plugin's execute function will be called directly
+</ResponseField>
+
+<ResponseField name="register" type="object" required>
+  Plugin registration and execution configuration
+
+  <Expandable title="register properties">
+    <ResponseField name="register" type="function" required>
+      Initialization function called when the plugin is registered.
+
+      ```typescript
+      (options: T, dependencies: any, next: (error?: Error) => void) => void
+      ```
+
+      <ParamField name="options" type="T">
+        Plugin configuration options
+      </ParamField>
+
+      <ParamField name="dependencies" type="any">
+        Dependencies provided by other plugins
+      </ParamField>
+
+      <ParamField name="next" type="(error?: Error) => void">
+        Callback to signal completion or error
+      </ParamField>
+    </ResponseField>
+
+    <ResponseField name="execute" type="(...args: any[]) => any" required>
+      The plugin's main function, called directly with any parameters
+    </ResponseField>
+
+    <ResponseField name="dependencies" type="string[]">
+      Names of other plugins this plugin depends on
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Plugin with Context
+
+When `context` is `true`, the plugin's execute function receives a context object containing component name and version, and returns a function.
+
+```typescript
+{
+  name: string;
+  description?: string;
+  options?: T;
+  context: true;
+  register: {
+    register: (options: T, dependencies: any, next: (error?: Error) => void) => void;
+    execute: (context: PluginContext) => (params: any) => any;
+    dependencies?: string[];
+  };
+}
+```
+
+<ResponseField name="context" type="true" required>
+  When true, the plugin's execute function receives a context object with component information
+</ResponseField>
+
+<ResponseField name="register.execute" type="(context: PluginContext) => (params: any) => any" required>
+  Returns a function that accepts parameters and returns any value.
+
+  **Example:**
+  ```typescript
+  execute: (context) => {
+    return (params) => {
+      console.log(`Called from ${context.name}@${context.version}`);
+      return processParams(params);
+    };
+  }
+  ```
+</ResponseField>
+
+---
+
+## PluginContext
+
+The context object passed to a plugin's execute function when `context: true`.
+
+```typescript
+export type PluginContext = {
+  name: string;
+  version: string;
+};
+```
+
+<ResponseField name="name" type="string" required>
+  The name of the component calling the plugin
+</ResponseField>
+
+<ResponseField name="version" type="string" required>
+  The version of the component calling the plugin
+</ResponseField>
+
+---
+
+## Plugins
+
+Registry of initialized plugins available to components.
+
+```typescript
+export interface Plugins {
+  [pluginName: string]: {
+    handler: (...args: unknown[]) => void;
+    description: string;
+    context: boolean;
+  };
+}
+```
+
+<ResponseField name="[pluginName]" type="object">
+  Plugin instance indexed by plugin name
+
+  <Expandable title="plugin instance properties">
+    <ResponseField name="handler" type="(...args: unknown[]) => void" required>
+      The plugin's execution function
+    </ResponseField>
+
+    <ResponseField name="description" type="string" required>
+      Human-readable description of the plugin
+    </ResponseField>
+
+    <ResponseField name="context" type="boolean" required>
+      Whether the plugin uses context information
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Usage Examples
+
+### Creating a Simple Plugin
+
+```typescript
+const myPlugin: Plugin = {
+  name: 'my-logger',
+  description: 'Logs messages with timestamps',
+  register: {
+    register: (options, dependencies, next) => {
+      // Initialize plugin
+      console.log('Logger plugin registered');
+      next();
+    },
+    execute: (message: string) => {
+      console.log(`[${new Date().toISOString()}] ${message}`);
+    }
+  }
+};
+```
+
+### Creating a Context-Aware Plugin
+
+```typescript
+const contextPlugin: Plugin = {
+  name: 'component-tracker',
+  description: 'Tracks component usage',
+  context: true,
+  register: {
+    register: (options, dependencies, next) => {
+      console.log('Tracker plugin registered');
+      next();
+    },
+    execute: (context: PluginContext) => {
+      return (action: string) => {
+        console.log(
+          `Component ${context.name}@${context.version} performed: ${action}`
+        );
+      };
+    }
+  }
+};
+```

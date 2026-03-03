@@ -1,0 +1,500 @@
+---
+title: Authentication
+description: Secure component publishing with authentication
+---
+
+The Registry supports authentication to restrict who can publish components. This prevents unauthorized users from pushing malicious or untested code to your component library.
+
+## Overview
+
+Authentication is configured via the `publishAuth` option:
+
+```javascript
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: { /* ... */ },
+  publishAuth: {
+    type: 'basic',
+    username: 'admin',
+    password: 'secret'
+  }
+});
+```
+
+When `publishAuth` is set:
+
+1. The Registry validates the authentication configuration on startup
+2. Publish requests (`PUT /:component/:version`) require authentication
+3. Invalid credentials return a `401 Unauthorized` response
+4. The authenticated username is available in `publishValidation` as `context.user`
+
+## Basic Authentication
+
+### Single User
+
+Authenticate with a single username and password:
+
+```javascript
+{
+  publishAuth: {
+    type: 'basic',
+    username: 'admin',
+    password: process.env.REGISTRY_PASSWORD
+  }
+}
+```
+
+### Multiple Users
+
+Authenticate with multiple username/password pairs:
+
+```javascript
+{
+  publishAuth: {
+    type: 'basic',
+    logins: [
+      { username: 'admin', password: process.env.ADMIN_PASSWORD },
+      { username: 'ci', password: process.env.CI_PASSWORD },
+      { username: 'developer', password: process.env.DEV_PASSWORD }
+    ]
+  }
+}
+```
+
+### Publishing with Basic Auth
+
+When publishing, provide credentials:
+
+```bash
+# Using oc CLI
+oc registry add https://admin:secret@components.example.com/
+oc publish my-component/
+
+# Using curl
+curl -X PUT \
+  -u admin:secret \
+  --data-binary @component.tar.gz \
+  https://components.example.com/my-component/1.0.0
+```
+
+## Custom Authentication
+
+For advanced authentication (OAuth, JWT, API keys), create a custom authentication module.
+
+### Authentication Interface
+
+An authentication module must export:
+
+```typescript
+interface Authentication<T = any> {
+  validate: (config: T) => {
+    isValid: boolean;
+    message: string;
+  };
+  middleware: (config: T) => Middleware;
+}
+```
+
+- `validate`: Validates the configuration on Registry startup
+- `middleware`: Returns Express middleware for authentication
+
+### Example: API Key Authentication
+
+Create `oc-auth-apikey.js`:
+
+```javascript
+module.exports = {
+  validate(config) {
+    if (!config.apiKeys || config.apiKeys.length === 0) {
+      return {
+        isValid: false,
+        message: 'API keys are required'
+      };
+    }
+    return {
+      isValid: true,
+      message: ''
+    };
+  },
+  
+  middleware(config) {
+    const validKeys = new Set(config.apiKeys);
+    
+    return (req, res, next) => {
+      const apiKey = req.headers['x-api-key'];
+      
+      if (!apiKey || !validKeys.has(apiKey)) {
+        res.status(401).json({
+          error: 'Invalid API key'
+        });
+        return;
+      }
+      
+      // Extract user from API key mapping (optional)
+      req.user = config.keyToUser?.[apiKey] || 'api-user';
+      next();
+    };
+  }
+};
+```
+
+Use it in your Registry:
+
+```javascript
+const apikeyAuth = require('./oc-auth-apikey');
+
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: { /* ... */ },
+  publishAuth: {
+    type: apikeyAuth,
+    apiKeys: [
+      process.env.API_KEY_1,
+      process.env.API_KEY_2
+    ],
+    keyToUser: {
+      [process.env.API_KEY_1]: 'admin',
+      [process.env.API_KEY_2]: 'ci'
+    }
+  }
+});
+```
+
+Publishing with API key:
+
+```bash
+curl -X PUT \
+  -H "X-API-Key: your-api-key" \
+  --data-binary @component.tar.gz \
+  https://components.example.com/my-component/1.0.0
+```
+
+### Example: JWT Authentication
+
+Create `oc-auth-jwt.js`:
+
+```javascript
+const jwt = require('jsonwebtoken');
+
+module.exports = {
+  validate(config) {
+    if (!config.secret) {
+      return {
+        isValid: false,
+        message: 'JWT secret is required'
+      };
+    }
+    return {
+      isValid: true,
+      message: ''
+    };
+  },
+  
+  middleware(config) {
+    return (req, res, next) => {
+      const authHeader = req.headers.authorization;
+      
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({
+          error: 'Missing or invalid authorization header'
+        });
+        return;
+      }
+      
+      const token = authHeader.substring(7);
+      
+      try {
+        const payload = jwt.verify(token, config.secret);
+        req.user = payload.sub || payload.username;
+        next();
+      } catch (error) {
+        res.status(401).json({
+          error: 'Invalid token',
+          details: error.message
+        });
+      }
+    };
+  }
+};
+```
+
+Use it:
+
+```javascript
+const jwtAuth = require('./oc-auth-jwt');
+
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: { /* ... */ },
+  publishAuth: {
+    type: jwtAuth,
+    secret: process.env.JWT_SECRET
+  }
+});
+```
+
+### Publishing npm Packages
+
+To distribute your auth module:
+
+1. Create an npm package named `oc-auth-{type}`:
+
+```json
+{
+  "name": "oc-auth-apikey",
+  "version": "1.0.0",
+  "main": "index.js"
+}
+```
+
+2. Publish to npm:
+
+```bash
+npm publish
+```
+
+3. Use by string reference:
+
+```javascript
+{
+  publishAuth: {
+    type: 'apikey', // Loads oc-auth-apikey
+    apiKeys: ['key1', 'key2']
+  }
+}
+```
+
+The Registry automatically loads `oc-auth-{type}` packages.
+
+## Publish Validation with Authentication
+
+Combine authentication with custom validation:
+
+```javascript
+{
+  publishAuth: {
+    type: 'basic',
+    logins: [
+      { username: 'admin', password: process.env.ADMIN_PASSWORD },
+      { username: 'developer', password: process.env.DEV_PASSWORD }
+    ]
+  },
+  publishValidation: (packageJson, { user }) => {
+    // Only admins can publish production components
+    if (packageJson.name.startsWith('prod-') && user !== 'admin') {
+      return {
+        isValid: false,
+        error: 'Only admin can publish production components'
+      };
+    }
+    
+    // Developers can only publish to their namespace
+    if (user === 'developer' && !packageJson.name.startsWith('dev-')) {
+      return {
+        isValid: false,
+        error: 'Developers must use the dev- namespace'
+      };
+    }
+    
+    return { isValid: true };
+  }
+}
+```
+
+The authenticated `user` is available in the `publishValidation` context.
+
+## Security Best Practices
+
+### Store Secrets Securely
+
+Never hardcode credentials:
+
+```javascript
+// ❌ Bad
+{
+  publishAuth: {
+    type: 'basic',
+    username: 'admin',
+    password: 'password123'
+  }
+}
+
+// ✅ Good
+{
+  publishAuth: {
+    type: 'basic',
+    username: process.env.REGISTRY_USERNAME,
+    password: process.env.REGISTRY_PASSWORD
+  }
+}
+```
+
+### Use Environment Variables
+
+Store credentials in environment variables or secret management systems:
+
+```bash
+# .env (gitignored)
+REGISTRY_USERNAME=admin
+REGISTRY_PASSWORD=strong-password-here
+```
+
+```javascript
+require('dotenv').config();
+
+const registry = oc.registry({
+  publishAuth: {
+    type: 'basic',
+    username: process.env.REGISTRY_USERNAME,
+    password: process.env.REGISTRY_PASSWORD
+  }
+});
+```
+
+### Use HTTPS in Production
+
+Always use HTTPS to prevent credential interception:
+
+```javascript
+// ❌ Bad (credentials sent in plaintext)
+baseUrl: 'http://components.example.com/'
+
+// ✅ Good (credentials encrypted)
+baseUrl: 'https://components.example.com/'
+```
+
+### Rotate Credentials Regularly
+
+Change passwords and API keys periodically:
+
+```javascript
+// Use multiple API keys and rotate them
+{
+  publishAuth: {
+    type: 'apikey',
+    apiKeys: [
+      process.env.API_KEY_CURRENT,
+      process.env.API_KEY_PREVIOUS  // Keep old key during rotation
+    ]
+  }
+}
+```
+
+### Audit Publishing Events
+
+Log all publish attempts:
+
+```javascript
+registry.on('component-published', (data) => {
+  console.log(`Published by ${data.user}: ${data.componentName}@${data.componentVersion}`);
+});
+
+registry.on('error', (data) => {
+  if (data.code === 'AUTH_ERROR') {
+    console.error('Authentication failed:', data.message);
+  }
+});
+```
+
+## Disabling Authentication
+
+For local development, you may want to disable authentication:
+
+```javascript
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+const registry = oc.registry({
+  baseUrl: 'http://localhost:3000/',
+  local: true,
+  // No publishAuth in local mode
+});
+```
+
+For remote registries, always use authentication:
+
+```javascript
+const isProduction = process.env.NODE_ENV === 'production';
+
+const registry = oc.registry({
+  baseUrl: 'https://components.example.com/',
+  storage: { /* ... */ },
+  publishAuth: isProduction ? {
+    type: 'basic',
+    username: process.env.REGISTRY_USERNAME,
+    password: process.env.REGISTRY_PASSWORD
+  } : undefined
+});
+```
+
+## Troubleshooting
+
+### "Authentication credentials missing"
+
+```
+Error: Authentication credentials missing for basic auth
+```
+
+Ensure both `username` and `password` are provided:
+
+```javascript
+{
+  publishAuth: {
+    type: 'basic',
+    username: process.env.REGISTRY_USERNAME,
+    password: process.env.REGISTRY_PASSWORD
+  }
+}
+```
+
+### "Auth module not found"
+
+```
+Error: Auth module oc-auth-custom not found
+```
+
+Install the authentication module:
+
+```bash
+npm install oc-auth-custom
+```
+
+Or provide the module directly:
+
+```javascript
+{
+  publishAuth: {
+    type: require('./oc-auth-custom'),
+    // ...
+  }
+}
+```
+
+### 401 Unauthorized
+
+If publishing fails with 401:
+
+1. Verify credentials are correct
+2. Check the authentication middleware logs
+3. Ensure credentials are properly encoded (especially for special characters)
+
+```bash
+# Test authentication
+curl -v -u admin:password https://components.example.com/
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/registry/configuration">
+    Explore all configuration options
+  </Card>
+  <Card title="Events" icon="bolt" href="/registry/events">
+    Monitor publish events
+  </Card>
+  <Card title="Middleware" icon="code" href="/registry/middleware">
+    Extend Registry behavior
+  </Card>
+  <Card title="Storage Adapters" icon="database" href="/registry/storage-adapters">
+    Configure cloud storage
+  </Card>
+</CardGroup>

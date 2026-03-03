@@ -1,0 +1,467 @@
+---
+title: 'Config Types'
+description: 'Registry configuration types and options'
+---
+
+## Config
+
+Complete configuration object for an OpenComponents registry instance.
+
+```typescript
+export interface Config<T = any> {
+  baseUrl: string;
+  compiledClient?: {
+    imports?: Record<string, string>;
+    code: { gzip: Buffer; brotli: Buffer; minified: string };
+    map: string;
+    dev: string;
+  };
+  baseUrlFunc?: (opts: { host?: string; secure: boolean }) => string;
+  beforePublish: (req: Request, res: Response, next: NextFunction) => void;
+  customHeadersToSkipOnWeakVersion: string[];
+  dependencies: string[];
+  discovery: {
+    robots: boolean;
+    api: boolean;
+    ui: boolean;
+    validate: boolean;
+    experimental: boolean;
+  };
+  discoveryFunc?: (opts: { host?: string; secure: boolean }) => boolean;
+  env: Record<string, string>;
+  executionTimeout?: number;
+  preload?: string;
+  fallbackRegistryUrl: string;
+  fallbackClient: boolean;
+  hotReloading: boolean;
+  keepAliveTimeout?: number;
+  liveReloadPort: number;
+  components?: string[];
+  local: boolean;
+  tarExtractMode: number;
+  path: string;
+  plugins: Plugins;
+  pollingInterval: number;
+  port: number | string;
+  postRequestPayloadSize?: string | number;
+  prefix: string;
+  publishAuth?: PublishAuthConfig;
+  publishValidation: (
+    pkgJson: unknown,
+    context: { user?: string }
+  ) =>
+    | {
+        isValid: boolean;
+        error?: string;
+      }
+    | boolean;
+  refreshInterval?: number;
+  routes?: Array<{
+    route: string;
+    method: string;
+    handler: string | ((req: Request, res: Response) => void);
+  }>;
+  s3?: {
+    bucket: string;
+    region: string;
+    key?: string;
+    secret?: string;
+    componentsDir: string;
+  };
+  storage: {
+    adapter: (options: T) => StorageAdapter;
+    options: T & { componentsDir: string };
+  };
+  tempDir: string;
+  templates: Template[];
+  timeout: number;
+  verbosity: number;
+}
+```
+
+### Core Settings
+
+<ResponseField name="baseUrl" type="string" required>
+  Public base URL where the registry is reachable by consumers.
+
+  The value **must** include the configured `prefix` at the end (e.g. `https://components.mycompany.com/` if `prefix` is `/`).
+
+  When it doesn't, the sanitiser will automatically append it.
+
+  **Example:** `"https://components.mycompany.com/"`
+</ResponseField>
+
+<ResponseField name="baseUrlFunc" type="(opts: { host?: string; secure: boolean }) => string">
+  Dynamically compute the `baseUrl` for the incoming request. If provided, it overrides the static `baseUrl`.
+</ResponseField>
+
+<ResponseField name="prefix" type="string" required>
+  URL path prefix appended to every registry endpoint. It **must** start and end with a slash (e.g. `/`, `/components/`).
+
+  **Default:** `"/"`
+</ResponseField>
+
+<ResponseField name="port" type="number | string" required>
+  Port the HTTP server listens on.
+
+  **Default:** `process.env.PORT ?? 3000`
+</ResponseField>
+
+### Storage Configuration
+
+<ResponseField name="storage" type="object" required>
+  Low-level storage adapter used by the registry.
+
+  <Expandable title="storage properties">
+    <ResponseField name="adapter" type="(options: T) => StorageAdapter" required>
+      Function that creates a storage adapter instance
+    </ResponseField>
+
+    <ResponseField name="options" type="T & { componentsDir: string }" required>
+      Configuration options passed to the storage adapter. Must include `componentsDir`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="s3" type="object">
+  Convenience S3 configuration – if present the registry will create a storage adapter automatically.
+
+  <Expandable title="s3 properties">
+    <ResponseField name="bucket" type="string" required>
+      S3 bucket name
+    </ResponseField>
+
+    <ResponseField name="region" type="string" required>
+      AWS region
+    </ResponseField>
+
+    <ResponseField name="key" type="string">
+      AWS access key ID
+    </ResponseField>
+
+    <ResponseField name="secret" type="string">
+      AWS secret access key
+    </ResponseField>
+
+    <ResponseField name="componentsDir" type="string" required>
+      Directory path within the bucket where components are stored
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="local" type="boolean" required>
+  Indicates whether the registry serves components from the local file system (`true`) or from the remote storage (`false`).
+</ResponseField>
+
+<ResponseField name="path" type="string" required>
+  Absolute path where local components are stored.
+</ResponseField>
+
+<ResponseField name="tempDir" type="string" required>
+  Directory used by the registry for temporary files.
+</ResponseField>
+
+### Component Settings
+
+<ResponseField name="components" type="string[]">
+  Restricts the registry to serve only the specified component names.
+</ResponseField>
+
+<ResponseField name="dependencies" type="string[]" required>
+  Names of npm packages that components can `require` at runtime.
+
+  **Default:** `[]`
+
+  **Example:** `["lodash", "moment"]`
+</ResponseField>
+
+<ResponseField name="templates" type="Template[]" required>
+  List of template engines available for rendering components.
+</ResponseField>
+
+<ResponseField name="plugins" type="Plugins" required>
+  Collection of plugins initialised for this registry instance. Populated via `registry.register(...)`.
+</ResponseField>
+
+<ResponseField name="env" type="Record<string, string>" required>
+  Environment variables passed to components in `context.env`.
+
+  **Default:** `{}`
+</ResponseField>
+
+### Discovery Configuration
+
+<ResponseField name="discovery" type="object" required>
+  Configuration object to enable/disable the HTML discovery page and the API.
+
+  <Expandable title="discovery properties">
+    <ResponseField name="robots" type="boolean" required>
+      Appends a `<meta name="robots" content="index, follow" />` to the HTML head. False to append a `<meta name="robots" content="noindex, nofollow" />`.
+
+      **Default:** `true`
+    </ResponseField>
+
+    <ResponseField name="api" type="boolean" required>
+      Enables API discovery endpoints.
+
+      **Default:** `true`
+    </ResponseField>
+
+    <ResponseField name="ui" type="boolean" required>
+      Enables the HTML discovery page.
+
+      **Default:** `true`
+    </ResponseField>
+
+    <ResponseField name="validate" type="boolean" required>
+      Enables validation for the discovery API.
+
+      **Default:** `false`
+    </ResponseField>
+
+    <ResponseField name="experimental" type="boolean" required>
+      Shows experimental components from the API.
+
+      **Default:** `true`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="discoveryFunc" type="(opts: { host?: string; secure: boolean }) => boolean">
+  Function invoked to decide whether discovery should be enabled for the current request.
+</ResponseField>
+
+### Publishing Configuration
+
+<ResponseField name="beforePublish" type="(req: Request, res: Response, next: NextFunction) => void" required>
+  Express-compatible hook executed before a component is published. Defaults to a no-op or the authentication middleware specified in `publishAuth`.
+</ResponseField>
+
+<ResponseField name="publishAuth" type="PublishAuthConfig">
+  Authentication strategy for component publishing.
+
+  <Expandable title="PublishAuthConfig types">
+    Basic authentication with single user:
+    ```typescript
+    {
+      type: 'basic';
+      username: string;
+      password: string;
+    }
+    ```
+
+    Basic authentication with multiple users:
+    ```typescript
+    {
+      type: 'basic';
+      logins: Array<{ username: string; password: string }>;
+    }
+    ```
+
+    Custom authentication:
+    ```typescript
+    {
+      type: string | Authentication;
+      [key: string]: any;
+    }
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="publishValidation" type="function" required>
+  Custom validation logic executed during component publishing.
+
+  ```typescript
+  (pkgJson: unknown, context: { user?: string }) =>
+    | { isValid: boolean; error?: string; }
+    | boolean
+  ```
+
+  <ParamField name="pkgJson" type="unknown">
+    The component's package.json content
+  </ParamField>
+
+  <ParamField name="context" type="{ user?: string }">
+    Publishing context with optional user information
+  </ParamField>
+</ResponseField>
+
+<ResponseField name="postRequestPayloadSize" type="string | number">
+  Maximum allowed `Content-Length` for *publish* requests. Accepts any value supported by the `bytes` module (e.g. "10mb").
+</ResponseField>
+
+<ResponseField name="tarExtractMode" type="number" required>
+  File and directory mode (octal) applied when extracting tarballs during publishing.
+
+  **Default:** `0o766`
+</ResponseField>
+
+### Runtime Configuration
+
+<ResponseField name="executionTimeout" type="number">
+  Maximum execution time of a component's server-side logic, expressed in seconds. When the timeout elapses the registry returns a 500 error.
+
+  If omitted there is no execution timeout.
+</ResponseField>
+
+<ResponseField name="timeout" type="number" required>
+  HTTP request timeout in **milliseconds**.
+
+  **Default:** `120000`
+</ResponseField>
+
+<ResponseField name="hotReloading" type="boolean" required>
+  Enables hot-reloading of component code (always `true` when `local` is).
+
+  **Default:** `!!local`
+</ResponseField>
+
+<ResponseField name="pollingInterval" type="number" required>
+  Seconds between each poll of the storage adapter for changes.
+
+  **Default:** `5`
+</ResponseField>
+
+<ResponseField name="refreshInterval" type="number">
+  Seconds between each refresh of the internal component list cache.
+</ResponseField>
+
+### Fallback Configuration
+
+<ResponseField name="fallbackRegistryUrl" type="string" required>
+  URL of a secondary registry that will be queried if a component cannot be found on this instance. A trailing slash is appended automatically.
+</ResponseField>
+
+<ResponseField name="fallbackClient" type="boolean" required>
+  Enables the fallback client to be used.
+
+  **Default:** `false`
+</ResponseField>
+
+### Preview Configuration
+
+<ResponseField name="preload" type="string">
+  JavaScript code to be included in the preview HTML's `<head>` section. Can be either a filepath to a JS script or inline JavaScript code.
+
+  **Example:** `"path/to/script.js"`
+
+  **Example:** `"console.log('Hello from preload script');"`
+</ResponseField>
+
+<ResponseField name="liveReloadPort" type="number" required>
+  TCP port of the LiveReload server used by the preview page.
+</ResponseField>
+
+### Advanced Settings
+
+<ResponseField name="compiledClient" type="object">
+  Pre-compiled version of the `oc-client` library generated automatically at runtime when `compileClient` is enabled (default).
+
+  This is filled in by the framework – you normally don't set it yourself. Declared here to keep the type complete.
+
+  <Expandable title="compiledClient properties">
+    <ResponseField name="imports" type="Record<string, string>">
+      Import mappings
+    </ResponseField>
+
+    <ResponseField name="code" type="object" required>
+      Compiled client code in different formats
+
+      <ResponseField name="gzip" type="Buffer" required>
+        Gzip-compressed version
+      </ResponseField>
+
+      <ResponseField name="brotli" type="Buffer" required>
+        Brotli-compressed version
+      </ResponseField>
+
+      <ResponseField name="minified" type="string" required>
+        Minified JavaScript code
+      </ResponseField>
+    </ResponseField>
+
+    <ResponseField name="map" type="string" required>
+      Source map
+    </ResponseField>
+
+    <ResponseField name="dev" type="string" required>
+      Development version
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="customHeadersToSkipOnWeakVersion" type="string[]" required>
+  List of header names (lower-case) to omit from the response when a fallback/weak component version is served.
+
+  **Default:** `[]`
+</ResponseField>
+
+<ResponseField name="keepAliveTimeout" type="number">
+  Milliseconds the HTTP server keeps idle connections alive.
+
+  **Default:** `5000`
+</ResponseField>
+
+<ResponseField name="routes" type="Array<object>">
+  Additional Express routes to mount on the registry application.
+
+  <Expandable title="route object properties">
+    <ResponseField name="route" type="string" required>
+      URL path pattern
+    </ResponseField>
+
+    <ResponseField name="method" type="string" required>
+      HTTP method (GET, POST, etc.)
+    </ResponseField>
+
+    <ResponseField name="handler" type="string | ((req: Request, res: Response) => void)" required>
+      Route handler function or path to handler module
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="verbosity" type="number" required>
+  Verbosity level of the console logger (0 = silent).
+
+  **Default:** `0`
+</ResponseField>
+
+---
+
+## RegistryOptions
+
+Alias for the Config type used when initializing a registry.
+
+```typescript
+export type RegistryOptions = Partial<Config>;
+```
+
+All fields from `Config` are optional when creating a registry, as the framework provides sensible defaults.
+
+---
+
+## Related Types
+
+### Authentication
+
+Generic authentication provider interface.
+
+```typescript
+export type Authentication<T = any> = {
+  validate: (config: T) => {
+    isValid: boolean;
+    message: string;
+  };
+  middleware: (config: T) => Middleware;
+};
+```
+
+<ResponseField name="validate" type="function" required>
+  Validates the authentication configuration.
+
+  Returns an object with `isValid` boolean and `message` string.
+</ResponseField>
+
+<ResponseField name="middleware" type="function" required>
+  Returns an Express middleware function for the given configuration.
+</ResponseField>

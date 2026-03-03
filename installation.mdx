@@ -1,0 +1,696 @@
+---
+title: Installation
+description: Complete guide to installing and configuring OpenComponents for both development and production environments
+---
+
+## Overview
+
+OpenComponents can be installed in two different modes:
+- **CLI** - For component development and local testing
+- **Registry** - For hosting and serving components in production
+
+This guide covers both installation scenarios.
+
+## Requirements
+
+<Note>
+  **Node.js 18 or higher** is required for OpenComponents
+</Note>
+
+Check your Node.js version:
+
+```bash
+node --version
+```
+
+If you need to upgrade, visit [nodejs.org](https://nodejs.org) or use a version manager like [nvm](https://github.com/nvm-sh/nvm).
+
+## CLI Installation
+
+The OpenComponents CLI is used for developing, packaging, and publishing components.
+
+### Install Globally
+
+<CodeGroup>
+```bash npm
+npm install -g oc
+```
+
+```bash yarn
+yarn global add oc
+```
+
+```bash pnpm
+pnpm add -g oc
+```
+</CodeGroup>
+
+### Verify Installation
+
+Check that the CLI is installed correctly:
+
+```bash
+oc --version
+```
+
+You should see output like:
+```
+0.50.44
+```
+
+### Available Commands
+
+View all available commands:
+
+```bash
+oc --help
+```
+
+<Accordion title="CLI Commands Overview">
+  ```
+  oc init <componentPath> [templateType]
+    Create a new component
+
+  oc dev <dirPath> [port] [baseUrl]
+    Run a local development registry
+
+  oc package <componentPath>
+    Package a component for publishing
+
+  oc publish <componentPath>
+    Publish a component to a registry
+
+  oc validate <componentPath>
+    Validate a component without publishing
+
+  oc preview <componentHref>
+    Preview a component in your browser
+
+  oc registry add <registryUrl>
+    Add a registry to your project
+
+  oc registry ls
+    List configured registries
+
+  oc registry remove <registryUrl>
+    Remove a registry from your project
+
+  oc mock <targetType> <targetName> <targetValue>
+    Mock plugins or dependencies for local development
+
+  oc clean <dirPath>
+    Remove node_modules from component directories
+  ```
+</Accordion>
+
+## Registry Installation
+
+To host components, you need to set up an OpenComponents registry server. The registry can be installed as a Node.js package in your application.
+
+### Install as Dependency
+
+<CodeGroup>
+```bash npm
+npm install oc
+```
+
+```bash yarn
+yarn add oc
+```
+
+```bash pnpm
+pnpm add oc
+```
+</CodeGroup>
+
+### Basic Registry Setup
+
+Create a registry server using the OpenComponents API:
+
+```javascript server.js
+import { Registry } from 'oc';
+
+const registry = Registry({
+  // Public URL where the registry is accessible
+  baseUrl: 'http://localhost:3000/',
+  
+  // Port to listen on
+  port: 3000,
+  
+  // Directory containing components (for local development)
+  local: true,
+  path: './components',
+  
+  // Enable component discovery UI
+  discovery: true,
+  
+  // Verbosity level (0 = silent, 1 = normal)
+  verbosity: 1
+});
+
+// Start the registry
+registry.start((err, app) => {
+  if (err) {
+    console.error('Failed to start registry:', err);
+    process.exit(1);
+  }
+  
+  console.log('Registry started successfully');
+});
+```
+
+<Info>
+  This example creates a local registry for development. For production, you'll want to configure storage adapters and other production settings.
+</Info>
+
+### Production Registry Setup
+
+For production environments, configure the registry with a storage adapter (e.g., S3):
+
+```javascript server.js
+import { Registry } from 'oc';
+
+const registry = Registry({
+  baseUrl: 'https://components.mycompany.com/',
+  port: process.env.PORT || 3000,
+  prefix: '/',
+  
+  // S3 storage configuration
+  s3: {
+    bucket: 'my-components-bucket',
+    region: 'us-east-1',
+    componentsDir: 'components'
+  },
+  
+  // Or use a custom storage adapter
+  // storage: {
+  //   adapter: require('oc-s3-storage-adapter'),
+  //   options: {
+  //     bucket: 'my-components-bucket',
+  //     region: 'us-east-1',
+  //     componentsDir: 'components'
+  //   }
+  // },
+  
+  // Authentication for publishing
+  publishAuth: {
+    type: 'basic',
+    username: process.env.REGISTRY_USERNAME,
+    password: process.env.REGISTRY_PASSWORD
+  },
+  
+  // Environment variables passed to components
+  env: {
+    name: 'production',
+    apiUrl: process.env.API_URL
+  },
+  
+  // Enable component discovery
+  discovery: {
+    ui: true,
+    api: true,
+    robots: true,
+    experimental: true,
+    validate: false
+  },
+  
+  // Template engines to support
+  templates: [
+    require('oc-template-handlebars'),
+    require('oc-template-es6'),
+    require('oc-template-jade')
+  ],
+  
+  // Fallback to another registry for missing components
+  fallbackRegistryUrl: 'https://backup-registry.mycompany.com/',
+  
+  // Execution timeout for server-side logic (seconds)
+  executionTimeout: 5,
+  
+  // Request timeout (milliseconds)
+  timeout: 120000,
+  
+  // Polling interval for component updates (seconds)
+  pollingInterval: 5,
+  
+  verbosity: 1
+});
+
+// Error handling
+registry.on('error', (error) => {
+  console.error('Registry error:', error);
+});
+
+registry.on('request', (data) => {
+  if (data.errorCode) {
+    console.error('Component request error:', data);
+  }
+});
+
+registry.start((err, { app, server }) => {
+  if (err) {
+    console.error('Failed to start registry:', err);
+    process.exit(1);
+  }
+  
+  console.log('Production registry started');
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, closing registry...');
+  registry.close((err) => {
+    if (err) {
+      console.error('Error closing registry:', err);
+      process.exit(1);
+    }
+    process.exit(0);
+  });
+});
+```
+
+## Configuration Options
+
+Here are the key configuration options for the registry:
+
+<Tabs>
+  <Tab title="Core Settings">
+    ```typescript
+    {
+      // Public base URL (required)
+      baseUrl: string,
+      
+      // Port to listen on
+      port: number | string, // default: 3000
+      
+      // URL prefix for all routes
+      prefix: string, // default: '/'
+      
+      // Verbosity level
+      verbosity: number, // 0 = silent, 1 = normal
+    }
+    ```
+  </Tab>
+
+  <Tab title="Storage">
+    ```typescript
+    {
+      // For local development
+      local: boolean,
+      path: string, // path to components directory
+      
+      // For production with S3
+      s3: {
+        bucket: string,
+        region: string,
+        key?: string,
+        secret?: string,
+        componentsDir: string
+      },
+      
+      // Or custom storage adapter
+      storage: {
+        adapter: (options) => StorageAdapter,
+        options: {
+          componentsDir: string,
+          // ... adapter-specific options
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Authentication">
+    ```typescript
+    {
+      // Basic authentication
+      publishAuth: {
+        type: 'basic',
+        username: string,
+        password: string
+      },
+      
+      // Or multiple users
+      publishAuth: {
+        type: 'basic',
+        logins: [
+          { username: string, password: string },
+          // ...
+        ]
+      },
+      
+      // Or custom authentication
+      publishAuth: {
+        type: string | Authentication,
+        // ... custom config
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Discovery">
+    ```typescript
+    {
+      discovery: {
+        // Enable HTML discovery page
+        ui: boolean, // default: true
+        
+        // Enable API discovery endpoints
+        api: boolean, // default: true
+        
+        // SEO robots meta tag
+        robots: boolean, // default: true
+        
+        // Show experimental components
+        experimental: boolean, // default: true
+        
+        // Validate discovery API responses
+        validate: boolean // default: false
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Advanced">
+    ```typescript
+    {
+      // Environment variables for components
+      env: Record<string, string>,
+      
+      // Available npm packages for components
+      dependencies: string[],
+      
+      // Fallback registry URL
+      fallbackRegistryUrl: string,
+      
+      // Enable fallback client
+      fallbackClient: boolean,
+      
+      // Hot reloading in dev mode
+      hotReloading: boolean,
+      
+      // Component execution timeout (seconds)
+      executionTimeout: number,
+      
+      // HTTP request timeout (milliseconds)
+      timeout: number, // default: 120000
+      
+      // Polling interval (seconds)
+      pollingInterval: number, // default: 5
+      
+      // Max payload size for publish
+      postRequestPayloadSize: string | number,
+      
+      // Custom routes
+      routes: Array<{
+        route: string,
+        method: string,
+        handler: Function
+      }>
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Development Environment Setup
+
+For component development, create a project structure:
+
+<Steps>
+  <Step title="Create project directory">
+    ```bash
+    mkdir my-components
+    cd my-components
+    ```
+  </Step>
+
+  <Step title="Initialize Git (optional)">
+    ```bash
+    git init
+    ```
+  </Step>
+
+  <Step title="Create components">
+    ```bash
+    oc init header oc-template-es6
+    oc init footer oc-template-es6
+    oc init sidebar oc-template-handlebars
+    ```
+
+    Your structure should look like:
+    ```
+    my-components/
+    ├── header/
+    ├── footer/
+    └── sidebar/
+    ```
+  </Step>
+
+  <Step title="Create oc.json configuration">
+    Create an `oc.json` file in the root to configure your development environment:
+
+    ```json oc.json
+    {
+      "registries": [
+        "http://localhost:3000",
+        "https://components.mycompany.com"
+      ],
+      "development": {
+        "fallback": {
+          "url": "https://components.mycompany.com",
+          "client": false
+        },
+        "preload": "console.log('Development mode');",
+        "routes": [
+          {
+            "route": "/health",
+            "method": "get",
+            "handler": "(req, res) => res.json({ status: 'ok' })"
+          }
+        ]
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Start development server">
+    ```bash
+    oc dev . 3000
+    ```
+  </Step>
+</Steps>
+
+## Template Installation
+
+Components require templates. Install the template compilers you need:
+
+<CodeGroup>
+```bash ES6 Template
+npm install --save-dev oc-template-es6-compiler
+```
+
+```bash Handlebars Template
+npm install --save-dev oc-template-handlebars-compiler
+```
+
+```bash Jade Template
+npm install --save-dev oc-template-jade-compiler
+```
+</CodeGroup>
+
+<Info>
+  Templates are automatically detected and installed when you run `oc dev` or `oc package`. You can also install them manually in your component's `package.json`.
+</Info>
+
+## Plugin Installation
+
+Extend OpenComponents functionality with plugins:
+
+```javascript
+import { Registry } from 'oc';
+
+const registry = Registry({
+  // ... configuration
+});
+
+// Register a plugin
+registry.register({
+  name: 'my-plugin',
+  description: 'Custom functionality',
+  register: {
+    register: (options, dependencies, next) => {
+      // Plugin initialization
+      next();
+    },
+    execute: (params) => {
+      // Plugin logic
+      return 'plugin result';
+    }
+  }
+});
+
+registry.start((err) => {
+  // ...
+});
+```
+
+## Client Library Installation
+
+To consume components in your web applications:
+
+<CodeGroup>
+```bash npm
+npm install oc-client
+```
+
+```bash yarn
+yarn add oc-client
+```
+
+```bash pnpm
+pnpm add oc-client
+```
+</CodeGroup>
+
+For browser usage, the client is automatically served by the registry:
+
+```html
+<script src="http://your-registry.com/oc-client/client.js"></script>
+```
+
+## Docker Installation
+
+You can also run OpenComponents in Docker:
+
+```dockerfile Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install OC CLI globally
+RUN npm install -g oc
+
+# Copy your components
+COPY ./components /app/components
+
+# Expose registry port
+EXPOSE 3000
+
+# Start registry
+CMD ["oc", "dev", "./components", "3000", "0.0.0.0:3000"]
+```
+
+Build and run:
+
+```bash
+docker build -t my-oc-registry .
+docker run -p 3000:3000 my-oc-registry
+```
+
+## Environment Variables
+
+Common environment variables for OpenComponents:
+
+```bash .env
+# Registry settings
+REGISTRY_PORT=3000
+REGISTRY_BASE_URL=https://components.mycompany.com/
+
+# Authentication
+OC_REGISTRY_USERNAME=admin
+OC_REGISTRY_PASSWORD=secret
+
+# S3 storage
+AWS_ACCESS_KEY_ID=your-key
+AWS_SECRET_ACCESS_KEY=your-secret
+AWS_REGION=us-east-1
+S3_BUCKET=components-bucket
+
+# Application environment
+NODE_ENV=production
+API_URL=https://api.mycompany.com
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Permission denied when installing globally">
+    On Unix systems, you may need to use `sudo` or fix npm permissions:
+    
+    ```bash
+    # Option 1: Use sudo (not recommended)
+    sudo npm install -g oc
+    
+    # Option 2: Fix npm permissions (recommended)
+    mkdir ~/.npm-global
+    npm config set prefix '~/.npm-global'
+    echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.profile
+    source ~/.profile
+    npm install -g oc
+    ```
+  </Accordion>
+
+  <Accordion title="Node version mismatch">
+    If you see errors about Node.js version, upgrade your Node.js:
+    
+    ```bash
+    # Using nvm
+    nvm install 18
+    nvm use 18
+    
+    # Verify
+    node --version
+    ```
+  </Accordion>
+
+  <Accordion title="Port already in use">
+    If the default port (3000) is busy, specify a different port:
+    
+    ```bash
+    oc dev . 3001
+    ```
+    
+    Or find and kill the process using the port:
+    
+    ```bash
+    # Find process
+    lsof -i :3000
+    
+    # Kill process
+    kill -9 <PID>
+    ```
+  </Accordion>
+
+  <Accordion title="Missing template compiler">
+    If you see template-related errors:
+    
+    ```bash
+    cd your-component
+    npm install --save-dev oc-template-es6-compiler
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create your first component in 5 minutes
+  </Card>
+  
+  <Card title="Component Structure" icon="code" href="/components/component-structure">
+    Learn about component structure and APIs
+  </Card>
+  
+  <Card title="Registry Configuration" icon="gear" href="/registry/configuration">
+    Detailed registry configuration options
+  </Card>
+  
+  <Card title="Storage Adapters" icon="database" href="/registry/storage-adapters">
+    Configure S3, Azure, or custom storage
+  </Card>
+</CardGroup>
+
+<Info>
+  For more help, check the [GitHub repository](https://github.com/opencomponents/oc) or join the [Gitter community](https://gitter.im/opentable/oc).
+</Info>

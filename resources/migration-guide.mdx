@@ -1,0 +1,240 @@
+---
+title: Migration Guide
+description: Breaking changes and migration instructions for upgrading OpenComponents
+---
+
+This guide helps you migrate between major versions of OpenComponents and understand breaking changes.
+
+## Latest Breaking Changes
+
+### v0.50.0 - Compile Client Default Changed
+
+**PR:** [#1396](https://github.com/opencomponents/oc/pull/1396)
+
+The `compileClient` option now defaults to `true` instead of `false`.
+
+**Migration:**
+```js
+// Before: client compilation was opt-in
+const registry = new Registry({
+  compileClient: true // had to be explicit
+});
+
+// After: client compilation is automatic
+const registry = new Registry({
+  // compileClient is true by default
+  // set to false if you want the old behavior
+  compileClient: false
+});
+```
+
+### v0.50.15 - Express 5 Migration
+
+**PR:** [#1421](https://github.com/opencomponents/oc/pull/1421)
+
+Upgraded to Express 5, which includes breaking changes in middleware and error handling.
+
+**Migration:**
+- Review your custom middleware for Express 5 compatibility
+- Error handlers must use 4 parameters: `(err, req, res, next)`
+- Path matching is more strict in Express 5
+
+### v0.49.0 - Node.js Support
+
+**PR:** [#1203](https://github.com/opencomponents/oc/pull/1203)
+
+Dropped support for Node.js 8 and 10.
+
+**Migration:**
+- Upgrade to Node.js 12 or higher (Node.js 18+ recommended)
+- Update your CI/CD pipelines
+- Check component `package.json` for Node version requirements
+
+### v0.49.0 - Client Browser Update
+
+**PR:** [#1207](https://github.com/opencomponents/oc/pull/1207)
+
+Updated `oc-client-browser` to 1.5.3 with API changes.
+
+**Migration:**
+- Review client-side event listeners for signature changes
+- Update any custom client integrations
+
+## Version 0.48.x Breaking Changes
+
+### Template Engine Updates
+
+**Handlebars Upgrade** (v0.48.15, v0.48.14, v0.48.9)
+- Upgraded Handlebars compiler to latest version
+- Security patches included
+
+**Migration:**
+- Test your Handlebars components thoroughly
+- Review template syntax for deprecated features
+- Update any custom Handlebars helpers
+
+## Version 0.47.x Changes
+
+### v0.47.0 - Header Support for Component Retrieval
+
+**PR:** [#1024](https://github.com/opencomponents/oc/pull/1024)
+
+Added ability to set headers when fetching components.
+
+**Migration:**
+```js
+// New capability - no breaking changes
+registry.getComponents([
+  { name: 'my-component', version: '1.0.0' }
+], {
+  headers: {
+    'Authorization': 'Bearer token',
+    'Custom-Header': 'value'
+  }
+});
+```
+
+## Version 0.46.x Changes
+
+### v0.46.0 - Node.js 6 Deprecation
+
+**PR:** [#1012](https://github.com/opencomponents/oc/pull/1012)
+
+Removed support for Node.js 6.
+
+**Migration:**
+- Upgrade to Node.js 8 or higher
+- Update deployment environments
+
+## Version 0.44.x Changes
+
+### v0.44.0 - ES6 Template as Default
+
+**PR:** [#862](https://github.com/opencomponents/oc/pull/862)
+
+ES6 template is now the default when creating new components.
+
+**Migration:**
+```bash
+# Before: created Jade templates by default
+oc init my-component
+
+# After: creates ES6 templates by default
+oc init my-component
+
+# To use a specific template:
+oc init my-component oc-template-handlebars
+oc init my-component oc-template-jade
+```
+
+## Common Migration Patterns
+
+### Updating Component Dependencies
+
+```bash
+# Update OC in your component
+cd my-component
+npm install oc@latest --save-dev
+
+# Re-package and test
+oc dev .
+oc package .
+```
+
+### Registry Configuration Updates
+
+```js
+// Modern registry configuration
+const Registry = require('oc');
+
+const configuration = {
+  // Storage configuration
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      path: '//my-cdn.com/'
+    }
+  },
+  
+  // Template configuration
+  templates: [
+    require('oc-template-es6'),
+    require('oc-template-react')
+  ],
+  
+  // New features
+  compileClient: true,
+  env: {
+    name: 'production'
+  }
+};
+
+const registry = new Registry(configuration);
+```
+
+### Plugin System Migration
+
+**v0.42.14** introduced async plugin initialization:
+
+```js
+// Old synchronous plugins
+const plugin = {
+  name: 'my-plugin',
+  register: (options, dependencies, next) => {
+    // setup
+    next();
+  }
+};
+
+// New async plugins
+const plugin = {
+  name: 'my-plugin',
+  register: async (options, dependencies) => {
+    // setup with async/await
+    await setupDatabase();
+    return pluginAPI;
+  }
+};
+```
+
+## TypeScript Migration
+
+Starting from v0.49.2, OpenComponents has been migrated to TypeScript.
+
+**Benefits:**
+- Better type safety
+- Improved IDE support
+- Enhanced documentation through types
+
+**Migration:**
+```typescript
+import type { Registry, RegistryOptions } from 'oc';
+
+const config: RegistryOptions = {
+  storage: {
+    adapter: s3Adapter,
+    options: {
+      bucket: 'my-bucket'
+    }
+  }
+};
+
+const registry = new Registry(config);
+```
+
+## Getting Help
+
+If you encounter issues during migration:
+
+1. Check the [full changelog](https://github.com/opencomponents/oc/blob/master/CHANGELOG.md)
+2. Search [GitHub issues](https://github.com/opencomponents/oc/issues)
+3. Join the [Gitter chat](https://gitter.im/opentable/oc)
+4. Review the [troubleshooting guide](/resources/troubleshooting)
+
+## See Also
+
+- [Changelog](/resources/changelog) - Complete version history
+- [Contributing](/resources/contributing) - Contribution guidelines
+- [GitHub Releases](https://github.com/opencomponents/oc/releases)

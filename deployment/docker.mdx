@@ -1,0 +1,657 @@
+---
+title: Docker Deployment
+description: Deploy OpenComponents registry using Docker containers
+---
+
+Containerize your OpenComponents registry with Docker for consistent deployments across any platform, including AWS ECS, Kubernetes, and traditional servers.
+
+## Docker Image Creation
+
+### Basic Dockerfile
+
+Create a production-ready Docker image:
+
+```dockerfile Dockerfile
+# Use official Node.js LTS image
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+# Copy application code
+COPY . .
+
+# Expose registry port
+EXPOSE 3000
+
+# Set Node environment
+ENV NODE_ENV=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Run registry
+CMD ["node", "registry.js"]
+```
+
+<Note>
+Using Alpine Linux reduces image size significantly. For even smaller images, consider multi-stage builds.
+</Note>
+
+### Multi-Stage Build
+
+Optimize image size with multi-stage builds:
+
+```dockerfile Dockerfile
+# Build stage
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build if needed (e.g., TypeScript compilation)
+# RUN npm run build
+
+# Production stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+# Copy built application from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/registry.js ./
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Change ownership
+RUN chown -R nodejs:nodejs /app
+
+# Switch to non-root user
+USER nodejs
+
+# Expose port
+EXPOSE 3000
+
+ENV NODE_ENV=production
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+CMD ["node", "registry.js"]
+```
+
+### Registry Application
+
+Example `registry.js` for containerized deployment:
+
+```javascript registry.js
+require('dotenv').config();
+const oc = require('oc');
+
+const registry = oc.Registry({
+  baseUrl: process.env.BASE_URL,
+  prefix: '/',
+  
+  // S3 storage configuration
+  s3: {
+    bucket: process.env.S3_BUCKET,
+    region: process.env.AWS_REGION || 'us-east-1',
+    componentsDir: process.env.COMPONENTS_DIR || 'components'
+  },
+  
+  // Publishing authentication
+  publishAuth: process.env.PUBLISH_PASSWORD ? {
+    type: 'basic',
+    username: process.env.PUBLISH_USERNAME || 'admin',
+    password: process.env.PUBLISH_PASSWORD
+  } : undefined,
+  
+  // Performance settings
+  timeout: parseInt(process.env.TIMEOUT || '120000', 10),
+  executionTimeout: parseInt(process.env.EXECUTION_TIMEOUT || '5', 10),
+  keepAliveTimeout: parseInt(process.env.KEEP_ALIVE_TIMEOUT || '5000', 10),
+  pollingInterval: parseInt(process.env.POLLING_INTERVAL || '10', 10),
+  
+  // Environment variables for components
+  env: {
+    NODE_ENV: 'production',
+    API_URL: process.env.API_URL || ''
+  },
+  
+  // Discovery settings
+  discovery: {
+    ui: process.env.DISCOVERY_UI !== 'false',
+    api: process.env.DISCOVERY_API !== 'false',
+    experimental: process.env.DISCOVERY_EXPERIMENTAL === 'true',
+    validate: process.env.DISCOVERY_VALIDATE === 'true',
+    robots: process.env.DISCOVERY_ROBOTS !== 'false'
+  },
+  
+  // Logging
+  verbosity: parseInt(process.env.VERBOSITY || '1', 10)
+});
+
+// Error handling
+registry.on('error', (error) => {
+  console.error('Registry error:', error);
+});
+
+// Start registry
+registry.start((err, { app, server }) => {
+  if (err) {
+    console.error('Failed to start registry:', err);
+    process.exit(1);
+  }
+  
+  console.log(`Registry started on port ${process.env.PORT || 3000}`);
+});
+
+// Graceful shutdown
+const shutdown = (signal) => {
+  console.log(`${signal} received, shutting down gracefully`);
+  
+  registry.close((err) => {
+    if (err) {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    }
+    console.log('Registry closed successfully');
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+```
+
+## Building and Running
+
+<Steps>
+  <Step title="Build Docker Image">
+    ```bash
+    docker build -t mycompany/oc-registry:latest .
+    ```
+    
+    Tag for versioning:
+    ```bash
+    docker build -t mycompany/oc-registry:1.0.0 \
+                 -t mycompany/oc-registry:latest .
+    ```
+  </Step>
+  
+  <Step title="Test Locally">
+    ```bash
+    docker run -p 3000:3000 \
+      -e BASE_URL=http://localhost:3000/ \
+      -e S3_BUCKET=my-components-bucket \
+      -e AWS_REGION=us-east-1 \
+      -e AWS_ACCESS_KEY_ID=your-key \
+      -e AWS_SECRET_ACCESS_KEY=your-secret \
+      mycompany/oc-registry:latest
+    ```
+  </Step>
+  
+  <Step title="Push to Registry">
+    ```bash
+    # Docker Hub
+    docker push mycompany/oc-registry:latest
+    
+    # AWS ECR
+    aws ecr get-login-password --region us-east-1 | \
+      docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
+    
+    docker tag mycompany/oc-registry:latest \
+      ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/oc-registry:latest
+    
+    docker push ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/oc-registry:latest
+    ```
+  </Step>
+</Steps>
+
+## Docker Compose
+
+For local development and testing:
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  registry:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - BASE_URL=http://localhost:3000/
+      - S3_BUCKET=my-components-bucket
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - PUBLISH_USERNAME=admin
+      - PUBLISH_PASSWORD=${PUBLISH_PASSWORD}
+      - VERBOSITY=1
+    env_file:
+      - .env
+    volumes:
+      # Mount for hot-reloading in development
+      - ./registry.js:/app/registry.js:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+networks:
+  default:
+    name: oc-network
+```
+
+Run with Docker Compose:
+
+```bash
+# Start
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
+
+## Environment Variables
+
+Create a `.env` file for configuration:
+
+```bash .env
+# Registry Configuration
+BASE_URL=https://components.mycompany.com/
+PORT=3000
+
+# S3 Storage
+S3_BUCKET=my-components-bucket
+AWS_REGION=us-east-1
+COMPONENTS_DIR=components
+
+# AWS Credentials (optional with IAM roles)
+# AWS_ACCESS_KEY_ID=your-key-id
+# AWS_SECRET_ACCESS_KEY=your-secret-key
+
+# Publishing Authentication
+PUBLISH_USERNAME=admin
+PUBLISH_PASSWORD=secure-password-here
+
+# Performance
+TIMEOUT=120000
+EXECUTION_TIMEOUT=5
+KEEP_ALIVE_TIMEOUT=5000
+POLLING_INTERVAL=10
+
+# Component Environment
+API_URL=https://api.mycompany.com
+
+# Discovery
+DISCOVERY_UI=true
+DISCOVERY_API=true
+DISCOVERY_EXPERIMENTAL=false
+DISCOVERY_VALIDATE=true
+DISCOVERY_ROBOTS=true
+
+# Logging
+VERBOSITY=1
+```
+
+<Warning>
+Add `.env` to `.gitignore` to prevent committing secrets.
+</Warning>
+
+## Deployment Platforms
+
+### AWS ECS with Fargate
+
+See the [AWS deployment guide](/deployment/aws#ecs-deployment) for detailed ECS configuration.
+
+Quick launch:
+
+```bash
+# Create task definition
+aws ecs register-task-definition --cli-input-json file://task-definition.json
+
+# Create service
+aws ecs create-service \
+  --cluster my-cluster \
+  --service-name oc-registry \
+  --task-definition oc-registry:1 \
+  --desired-count 2 \
+  --launch-type FARGATE
+```
+
+### Kubernetes
+
+Deploy to Kubernetes (EKS, GKE, AKS, or self-hosted):
+
+<Steps>
+  <Step title="Create Deployment">
+    ```yaml k8s/deployment.yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: oc-registry
+      labels:
+        app: oc-registry
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: oc-registry
+      template:
+        metadata:
+          labels:
+            app: oc-registry
+        spec:
+          serviceAccountName: oc-registry
+          containers:
+          - name: oc-registry
+            image: mycompany/oc-registry:latest
+            ports:
+            - containerPort: 3000
+              protocol: TCP
+            env:
+            - name: BASE_URL
+              value: "https://components.mycompany.com/"
+            - name: S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: oc-registry-config
+                  key: s3-bucket
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: oc-registry-config
+                  key: aws-region
+            - name: PUBLISH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: oc-registry-secrets
+                  key: publish-password
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "250m"
+              limits:
+                memory: "1Gi"
+                cpu: "500m"
+            livenessProbe:
+              httpGet:
+                path: /
+                port: 3000
+              initialDelaySeconds: 30
+              periodSeconds: 10
+            readinessProbe:
+              httpGet:
+                path: /
+                port: 3000
+              initialDelaySeconds: 10
+              periodSeconds: 5
+    ```
+  </Step>
+  
+  <Step title="Create Service">
+    ```yaml k8s/service.yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: oc-registry
+    spec:
+      selector:
+        app: oc-registry
+      ports:
+      - protocol: TCP
+        port: 80
+        targetPort: 3000
+      type: LoadBalancer
+    ```
+  </Step>
+  
+  <Step title="Create ConfigMap">
+    ```yaml k8s/configmap.yaml
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: oc-registry-config
+    data:
+      s3-bucket: "my-components-bucket"
+      aws-region: "us-east-1"
+      components-dir: "components"
+    ```
+  </Step>
+  
+  <Step title="Create Secrets">
+    ```bash
+    kubectl create secret generic oc-registry-secrets \
+      --from-literal=publish-password='your-secure-password'
+    ```
+  </Step>
+  
+  <Step title="Deploy to Kubernetes">
+    ```bash
+    kubectl apply -f k8s/
+    
+    # Check deployment status
+    kubectl get deployments
+    kubectl get pods
+    kubectl get services
+    
+    # View logs
+    kubectl logs -f deployment/oc-registry
+    ```
+  </Step>
+</Steps>
+
+#### AWS EKS with IAM Roles
+
+Use IAM Roles for Service Accounts (IRSA):
+
+```yaml k8s/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oc-registry
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/oc-registry-role
+```
+
+### Cloud Run (GCP)
+
+Deploy to Google Cloud Run:
+
+```bash
+# Build and push to GCR
+gcloud builds submit --tag gcr.io/PROJECT_ID/oc-registry
+
+# Deploy
+gcloud run deploy oc-registry \
+  --image gcr.io/PROJECT_ID/oc-registry \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars BASE_URL=https://components.mycompany.com/,S3_BUCKET=my-bucket
+```
+
+### Azure Container Instances
+
+Deploy to Azure:
+
+```bash
+az container create \
+  --resource-group myResourceGroup \
+  --name oc-registry \
+  --image mycompany/oc-registry:latest \
+  --dns-name-label oc-registry \
+  --ports 3000 \
+  --environment-variables \
+    BASE_URL=https://components.mycompany.com/ \
+    S3_BUCKET=my-components-bucket \
+    AWS_REGION=us-east-1
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Image Security" icon="shield">
+    - Use official base images
+    - Run as non-root user
+    - Scan images for vulnerabilities
+    - Keep dependencies updated
+    - Use minimal base images (Alpine)
+  </Card>
+  
+  <Card title="Configuration" icon="gear">
+    - Use environment variables
+    - Never hardcode secrets
+    - Use secret management (AWS Secrets Manager, Vault)
+    - Validate configuration on startup
+  </Card>
+  
+  <Card title="Resource Limits" icon="gauge">
+    - Set memory limits (512MB-1GB)
+    - Set CPU limits (0.25-0.5 cores)
+    - Configure restart policies
+    - Implement health checks
+  </Card>
+  
+  <Card title="Logging" icon="file-lines">
+    - Log to stdout/stderr
+    - Use structured logging (JSON)
+    - Centralize logs (CloudWatch, Elasticsearch)
+    - Set appropriate log levels
+  </Card>
+</CardGroup>
+
+## Monitoring
+
+### Health Checks
+
+Implement comprehensive health checks:
+
+```javascript registry.js
+const express = require('express');
+const oc = require('oc');
+
+const app = express();
+
+// Health check endpoint (before registry)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Readiness check (checks dependencies)
+app.get('/ready', async (req, res) => {
+  try {
+    // Check S3 connectivity
+    // Check critical dependencies
+    res.status(200).json({ status: 'ready' });
+  } catch (error) {
+    res.status(503).json({ status: 'not ready', error: error.message });
+  }
+});
+
+const registry = oc.Registry({ /* ... */ });
+
+registry.start((err, { app: registryApp }) => {
+  if (err) {
+    console.error('Failed to start:', err);
+    process.exit(1);
+  }
+});
+```
+
+### Metrics
+
+Expose Prometheus metrics:
+
+```javascript
+const promClient = require('prom-client');
+
+// Create metrics
+const httpRequestDuration = new promClient.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+// Metrics endpoint
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', promClient.register.contentType);
+  res.end(await promClient.register.metrics());
+});
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Container Fails to Start">
+    Check logs:
+    ```bash
+    docker logs container-id
+    ```
+    
+    Common issues:
+    - Missing environment variables
+    - Invalid S3 credentials
+    - Port already in use
+    - Memory/CPU limits too low
+  </Accordion>
+  
+  <Accordion title="Components Not Loading">
+    - Verify S3 bucket configuration
+    - Check IAM permissions
+    - Validate `baseUrl` configuration
+    - Ensure `componentsDir` is correct
+  </Accordion>
+  
+  <Accordion title="High Memory Usage">
+    - Reduce `pollingInterval`
+    - Limit concurrent requests
+    - Increase container memory limits
+    - Check for memory leaks in components
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AWS Deployment" icon="aws" href="/deployment/aws">
+    Deploy to AWS ECS or EKS
+  </Card>
+  <Card title="Production Checklist" icon="list-check" href="/deployment/production">
+    Review production best practices
+  </Card>
+</CardGroup>

@@ -1,0 +1,384 @@
+---
+title: Component Structure
+description: Understanding the anatomy and file structure of OpenComponents
+---
+
+## Directory Layout
+
+A typical OpenComponent has the following structure:
+
+```
+my-component/
+├── package.json          # Component metadata and configuration
+├── server.js             # Data provider (optional)
+├── template.html         # View template
+├── static/               # Static assets (optional)
+│   ├── styles.css
+│   ├── image.png
+│   └── script.js
+└── _package/             # Build output (generated, do not edit)
+    ├── package.json
+    ├── server.js
+    └── template.js
+```
+
+## package.json Configuration
+
+The `package.json` file is the heart of your component. It contains standard npm fields plus an `oc` section for OpenComponents-specific configuration.
+
+### Minimal Configuration
+
+```json
+{
+  "name": "hello-world",
+  "description": "A simple greeting component",
+  "version": "1.0.0",
+  "repository": "https://github.com/my-org/components",
+  "oc": {
+    "files": {
+      "template": {
+        "src": "template.html",
+        "type": "handlebars"
+      }
+    }
+  }
+}
+```
+
+### Full Configuration
+
+```json
+{
+  "name": "welcome-component",
+  "description": "A personalized welcome message",
+  "version": "1.0.0",
+  "repository": "https://github.com/my-org/components",
+  "oc": {
+    "files": {
+      "data": "server.js",
+      "template": {
+        "src": "template.jade",
+        "type": "jade"
+      }
+    },
+    "parameters": {
+      "firstName": {
+        "type": "string",
+        "mandatory": true,
+        "example": "John"
+      },
+      "lastName": {
+        "type": "string",
+        "mandatory": false,
+        "example": "Smith",
+        "default": "Doe"
+      }
+    },
+    "container": false,
+    "renderInfo": false,
+    "state": "experimental"
+  },
+  "devDependencies": {
+    "oc-template-jade-compiler": "^7.5.0"
+  },
+  "dependencies": {
+    "lodash.isequal": "^4.5.0"
+  }
+}
+```
+
+## OC Configuration Object
+
+The `oc` object in `package.json` configures how your component behaves:
+
+### files
+
+Defines the component's source files.
+
+<ParamField path="files.data" type="string">
+  Path to the server-side data provider file (e.g., `"server.js"`).
+  
+  Optional - omit if your component doesn't need server-side logic.
+</ParamField>
+
+<ParamField path="files.template" type="object" required>
+  Template configuration object.
+  
+  <ParamField path="files.template.src" type="string" required>
+    Path to the template file (e.g., `"template.html"`, `"template.jade"`).
+  </ParamField>
+  
+  <ParamField path="files.template.type" type="string" required>
+    Template engine type. Must be one of: `"handlebars"`, `"jade"`, or `"es6"`.
+  </ParamField>
+</ParamField>
+
+<ParamField path="files.static" type="string[]">
+  Array of paths to static asset files or directories.
+  
+  ```json
+  {
+    "files": {
+      "static": ["static/"]
+    }
+  }
+  ```
+</ParamField>
+
+### parameters
+
+Defines the parameters your component accepts. See [Parameters documentation](/components/parameters) for details.
+
+```json
+{
+  "parameters": {
+    "title": {
+      "type": "string",
+      "mandatory": true,
+      "example": "Hello World"
+    },
+    "showImage": {
+      "type": "boolean",
+      "default": true
+    },
+    "maxItems": {
+      "type": "number",
+      "default": 10,
+      "enum": [5, 10, 20, 50]
+    }
+  }
+}
+```
+
+### container
+
+<ParamField path="container" type="boolean" default="true">
+  Controls whether the component is wrapped in a container div.
+  
+  - `true` (default): Component is wrapped in `<oc-component>`
+  - `false`: Component renders without wrapper
+  
+  ```json
+  {
+    "oc": {
+      "container": false
+    }
+  }
+  ```
+</ParamField>
+
+<Tip>
+Set `container: false` when you want full control over the component's root element, or when embedding in strict HTML contexts.
+</Tip>
+
+### renderInfo
+
+<ParamField path="renderInfo" type="boolean" default="true">
+  Controls whether rendering information is included in the component output.
+  
+  When `true`, adds metadata about:
+  - Component name and version
+  - Render time
+  - Parameters used
+  
+  ```json
+  {
+    "oc": {
+      "renderInfo": false
+    }
+  }
+  ```
+</ParamField>
+
+### state
+
+<ParamField path="state" type="string">
+  Marks the component's lifecycle state. Can be:
+  
+  - `"experimental"` - Component is in development/testing
+  - `"deprecated"` - Component is being phased out
+  
+  ```json
+  {
+    "oc": {
+      "state": "experimental"
+    }
+  }
+  ```
+</ParamField>
+
+<Info>
+Experimental components may be hidden from discovery by default, depending on registry configuration.
+</Info>
+
+## Component Lifecycle Files
+
+### Source Files
+
+These are the files you write and edit:
+
+<CodeGroup>
+```javascript server.js
+'use strict';
+
+module.exports.data = function(context, callback) {
+  // Fetch or compute data
+  const data = {
+    message: 'Hello ' + context.params.name
+  };
+  
+  callback(null, data);
+};
+```
+
+```html template.html
+<div class="greeting">
+  <h1>{{message}}</h1>
+</div>
+```
+
+```json package.json
+{
+  "name": "greeting",
+  "version": "1.0.0",
+  "oc": {
+    "files": {
+      "data": "server.js",
+      "template": {
+        "src": "template.html",
+        "type": "handlebars"
+      }
+    }
+  }
+}
+```
+</CodeGroup>
+
+### Packaged Files (_package/)
+
+When you run `oc package`, the CLI creates a `_package` directory containing:
+
+```
+_package/
+├── package.json       # Compiled component metadata
+├── server.js          # Bundled server-side code
+├── template.js        # Compiled template function
+└── hashKey.json       # Content hashes for caching
+```
+
+<Warning>
+Never edit files in `_package/` directly. They are regenerated on every build and will be overwritten.
+</Warning>
+
+## Internal Structure (OcConfiguration)
+
+After packaging, the component's configuration is enriched with additional metadata. This is defined in the `OcConfiguration` interface:
+
+```typescript
+interface OcConfiguration {
+  container?: boolean;
+  date: number;                    // Build timestamp
+  files: {
+    dataProvider: {
+      hashKey: string;               // Content hash
+      src: string;                   // Path to compiled data provider
+      type: string;                  // Always "node.js"
+    };
+    template: {
+      hashKey: string;               // Content hash
+      src: string;                   // Path to compiled template
+      type: string;                  // Template type (handlebars, jade, es6)
+      version: string;               // Template compiler version
+    };
+    static: string[];                // Static asset paths
+  };
+  packaged: boolean;                 // Always true for packaged components
+  parameters: Record<string, OcParameter>;
+  renderInfo?: boolean;
+  state?: 'deprecated' | 'experimental';
+  stringifiedDate: string;           // ISO date string
+  version: string;                   // Component version
+}
+```
+
+## Dependencies
+
+### Runtime Dependencies
+
+List npm packages your server-side code needs:
+
+```json
+{
+  "dependencies": {
+    "lodash.isequal": "^4.5.0",
+    "axios": "^1.4.0"
+  }
+}
+```
+
+**Usage in server.js:**
+```javascript
+const isEqual = require('lodash.isequal');
+const axios = require('axios');
+
+module.exports.data = async function(context, callback) {
+  try {
+    const response = await axios.get('https://api.example.com/data');
+    callback(null, { data: response.data });
+  } catch (error) {
+    callback(error);
+  }
+};
+```
+
+<Info>
+The registry must be configured to allow these dependencies. By default, only a whitelist of approved packages is available.
+</Info>
+
+### Development Dependencies
+
+The template compiler must always be in `devDependencies`:
+
+```json
+{
+  "devDependencies": {
+    "oc-template-handlebars-compiler": "^6.7.0"
+  }
+}
+```
+
+## .npmignore
+
+Control which files are included when publishing:
+
+```
+node_modules/
+.DS_Store
+*.log
+test/
+.env
+```
+
+<Tip>
+By default, the `_package` directory is what gets published to the registry, not your source files.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Templates" icon="file-code" href="/components/templates">
+    Learn about template engines and syntax
+  </Card>
+  
+  <Card title="Parameters" icon="sliders" href="/components/parameters">
+    Define component parameters with validation
+  </Card>
+  
+  <Card title="Data Providers" icon="database" href="/components/data-providers">
+    Write server-side logic and handle context
+  </Card>
+  
+  <Card title="Static Assets" icon="image" href="/components/static-assets">
+    Include CSS, images, and JavaScript files
+  </Card>
+</CardGroup>

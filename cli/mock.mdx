@@ -1,0 +1,337 @@
+---
+title: oc mock
+description: Create static mocks for plugins to facilitate local development
+---
+
+The `mock` command creates static mocks for OpenComponents plugins, allowing you to develop and test components locally without connecting to actual plugin implementations.
+
+## Usage
+
+```bash
+oc mock <targetType> <targetName> <targetValue>
+```
+
+## Arguments
+
+### `targetType` (required)
+
+The type of resource to mock.
+
+- **Supported values:** `plugin`
+- Currently only plugin mocking is supported
+
+### `targetName` (required)
+
+The name of the plugin to mock.
+
+- Must match the plugin name used in your component code
+- Examples: `hash`, `config`, `database`, `api-client`
+
+### `targetValue` (required)
+
+The static value that the mocked plugin should return.
+
+- Can be a string, number, or JSON value
+- This value will be returned every time the plugin is called
+- Useful for testing components without external dependencies
+
+## Examples
+
+### Mock a hash plugin
+
+```bash
+oc mock plugin hash "always-returned-value"
+```
+
+Creates a mock that makes the `hash` plugin always return `"always-returned-value"`.
+
+### Mock a configuration plugin
+
+```bash
+oc mock plugin config '{"apiUrl": "http://localhost:8080", "timeout": 5000}'
+```
+
+Mocks a config plugin with a JSON object.
+
+### Mock an authentication plugin
+
+```bash
+oc mock plugin auth "mock-user-token-12345"
+```
+
+Mocks an authentication plugin to return a test token.
+
+### Mock a database plugin
+
+```bash
+oc mock plugin database '{"user": {"id": 1, "name": "Test User"}}'
+```
+
+Mocks a database plugin to return test data.
+
+## How It Works
+
+1. The mock command creates a mock plugin file in your project
+2. When you run `oc dev`, the mocked plugin is automatically registered
+3. Any component requesting the plugin receives the mocked value
+4. The same mock is used across all components in the development server
+
+## Mock File Location
+
+Mocks are stored in:
+
+```
+oc-plugins-mock/
+└── <plugin-name>.js
+```
+
+Example structure:
+
+```
+oc-plugins-mock/
+├── hash.js
+├── config.js
+└── auth.js
+```
+
+## Using Mocked Plugins
+
+After creating a mock, start the development server:
+
+```bash
+oc mock plugin hash "test-value"
+oc dev ./components 3000
+```
+
+Your components will now use the mocked plugin value.
+
+## Output
+
+```bash
+$ oc mock plugin hash "always-returned-value"
+
+✓ Mocked plugin "hash" to return "always-returned-value"
+```
+
+## Plugin Usage in Components
+
+When a component requests the mocked plugin:
+
+```javascript
+// In your component's server.js
+export const data = (context, callback) => {
+  const hash = context.plugins.hash();
+  // hash will be "always-returned-value"
+  
+  callback(null, { hash });
+};
+```
+
+## Development Workflow
+
+### 1. Identify required plugins
+
+Determine which plugins your components need:
+
+```javascript
+// Component uses these plugins
+context.plugins.hash()
+context.plugins.config()
+context.plugins.database()
+```
+
+### 2. Create mocks
+
+```bash
+oc mock plugin hash "mock-hash-123"
+oc mock plugin config '{"apiUrl": "http://localhost:8080"}'
+oc mock plugin database '{"data": [1, 2, 3]}'
+```
+
+### 3. Start dev server
+
+```bash
+oc dev ./components 3000
+```
+
+### 4. Develop and test
+
+Components will use mocked values, allowing development without external dependencies.
+
+## Advanced Mocking
+
+### JSON values
+
+Mock complex data structures:
+
+```bash
+oc mock plugin api '{"status": "success", "data": {"items": [1, 2, 3]}}'
+```
+
+### Empty values
+
+```bash
+oc mock plugin optional ""
+oc mock plugin nullPlugin "null"
+```
+
+### Boolean values
+
+```bash
+oc mock plugin featureFlag "true"
+oc mock plugin isEnabled "false"
+```
+
+### Numeric values
+
+```bash
+oc mock plugin timeout "5000"
+oc mock plugin maxRetries "3"
+```
+
+## Updating Mocks
+
+To update a mock, run the command again with a new value:
+
+```bash
+oc mock plugin hash "old-value"
+# Later...
+oc mock plugin hash "new-value"
+```
+
+The mock file will be overwritten with the new value.
+
+## Removing Mocks
+
+To remove a mock, delete the file:
+
+```bash
+rm oc-plugins-mock/hash.js
+```
+
+Or remove the entire mocks directory:
+
+```bash
+rm -rf oc-plugins-mock/
+```
+
+## Error Handling
+
+### Plugin missing during development
+
+If a component uses a plugin that isn't mocked:
+
+```bash
+Error: Plugin "hash" missing from registry
+
+To mock this plugin, run:
+oc mock plugin hash "your-mock-value"
+```
+
+The dev server will show this error in red and provide the exact command to fix it.
+
+### Invalid target type
+
+```bash
+Error: targetType must be "plugin"
+```
+
+Only `plugin` is supported as a target type.
+
+### Invalid JSON
+
+If providing JSON, ensure it's valid:
+
+```bash
+# Wrong - invalid JSON
+oc mock plugin config '{invalid}'
+
+# Correct - valid JSON
+oc mock plugin config '{"key": "value"}'
+```
+
+## Use Cases
+
+### Local development without services
+
+Develop components without running external services:
+
+```bash
+oc mock plugin database '{"user": {"id": 1, "name": "Test"}}'
+oc mock plugin auth "test-token"
+oc dev ./components
+```
+
+### Testing different scenarios
+
+Test how components behave with different data:
+
+```bash
+# Test success case
+oc mock plugin api '{"status": "success"}'
+oc dev ./components
+
+# Test error case  
+oc mock plugin api '{"status": "error", "message": "Failed"}'
+oc dev ./components
+```
+
+### CI/CD testing
+
+Use mocks in automated testing:
+
+```bash
+#!/bin/bash
+oc mock plugin hash "ci-test-value"
+oc mock plugin config '{"env": "test"}'
+oc dev ./components 3000 &
+# Run tests...
+```
+
+### Team development
+
+Share mocks across the team:
+
+```bash
+# Create mocks
+oc mock plugin hash "team-shared-value"
+
+# Commit mock files
+git add oc-plugins-mock/
+git commit -m "Add plugin mocks for local development"
+```
+
+## Limitations
+
+1. **Static values only** - Mocks return the same value every time
+2. **No dynamic behavior** - Cannot mock functions or conditional logic
+3. **Plugin type only** - Cannot mock other types of resources
+4. **Development only** - Mocks are not used in production deployments
+
+## Best Practices
+
+1. **Commit mocks to version control** - Share mocks with the team
+2. **Document mock values** - Explain what each mock represents
+3. **Use realistic data** - Mock values should resemble production data
+4. **Update regularly** - Keep mocks in sync with actual plugin behavior
+5. **Don't depend on mocks for testing** - Use actual plugins in integration tests
+
+## Version Control
+
+Consider adding mock files to git:
+
+```bash
+git add oc-plugins-mock/
+git commit -m "Add plugin mocks for local development"
+```
+
+Or add to `.gitignore` if mocks are developer-specific:
+
+```
+oc-plugins-mock/
+```
+
+## Related Commands
+
+- [**dev**](/cli/dev) - Start development server that uses mocked plugins
+- [**init**](/cli/init) - Create components that may require plugins

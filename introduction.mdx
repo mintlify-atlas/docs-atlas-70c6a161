@@ -1,0 +1,164 @@
+---
+title: OpenComponents - Serverless in the Front-end World
+description: A framework for developing and distributing serverless micro-frontend components across your applications
+---
+
+<img
+  className="block dark:hidden"
+  src="https://raw.githubusercontent.com/opencomponents/oc/master/logo-type.png"
+  alt="OpenComponents Logo"
+/>
+<img
+  className="hidden dark:block"
+  src="https://raw.githubusercontent.com/opencomponents/oc/master/logo-type.png"
+  alt="OpenComponents Logo"
+/>
+
+## Welcome to OpenComponents
+
+OpenComponents is an open-source framework that allows fast-moving teams to easily build and deploy front-end components. It abstracts away complicated infrastructure and leaves developers with very simple, but powerful building blocks that handle scale transparently.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get up and running with your first component in under 5 minutes
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install OpenComponents CLI and set up your development environment
+  </Card>
+  <Card
+    title="GitHub Repository"
+    icon="github"
+    href="https://github.com/opencomponents/oc"
+  >
+    Explore the source code and contribute to the project
+  </Card>
+  <Card
+    title="Community Chat"
+    icon="comments"
+    href="https://gitter.im/opentable/oc"
+  >
+    Join our Gitter community for help and discussions
+  </Card>
+</CardGroup>
+
+## How It Works
+
+OpenComponents follows a simple three-step workflow:
+
+<Steps>
+  <Step title="Create Your Component">
+    Build components with server-side logic using Node.js and client-side views using your favorite framework (React, Vue, or plain JavaScript). Include CSS and JavaScript - it's all self-contained.
+
+    ```bash
+    oc init my-component oc-template-es6
+    ```
+  </Step>
+
+  <Step title="Publish to Registry">
+    Publish your component to an OpenComponents registry. The registry automatically prepares your component to be production-ready, optimizing assets and handling versioning.
+
+    ```bash
+    oc publish my-component
+    ```
+  </Step>
+
+  <Step title="Consume Anywhere">
+    Every component gets its own HTTP endpoint. Consume it during server-side rendering or directly in the browser from any web application in your network.
+
+    ```html
+    <oc-component href="http://my-registry.com/my-component/1.0.0"></oc-component>
+    ```
+  </Step>
+</Steps>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Framework Agnostic" icon="puzzle-piece">
+    Use React, Vue, Angular, Handlebars, or plain JavaScript - OpenComponents supports multiple template types and frameworks.
+  </Card>
+
+  <Card title="Serverless Architecture" icon="cloud">
+    Components include server-side logic for data fetching, keeping your client lightweight and fast.
+  </Card>
+
+  <Card title="Micro-Frontend Ready" icon="cubes">
+    Perfect for building distributed front-end architectures with independent teams and release cycles.
+  </Card>
+
+  <Card title="Version Management" icon="code-branch">
+    Built-in versioning allows multiple versions of components to coexist, enabling gradual rollouts and A/B testing.
+  </Card>
+
+  <Card title="Hot Reloading" icon="fire">
+    Development mode includes hot reloading and live preview for rapid iteration.
+  </Card>
+
+  <Card title="Production Ready" icon="shield-check">
+    Used in production at OpenTable and other companies for shared components, widgets, and emails.
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Shared Component Libraries">
+    Build a centralized component library that can be consumed across multiple applications, ensuring consistency and reducing duplication.
+  </Accordion>
+
+  <Accordion title="Third-Party Widgets">
+    Distribute embeddable widgets that can be consumed by external partners or customers with simple HTML snippets.
+  </Accordion>
+
+  <Accordion title="Email Templates">
+    Create reusable email templates with server-side rendering for consistent transactional and marketing emails.
+  </Accordion>
+
+  <Accordion title="Micro-Frontend Architecture">
+    Enable independent teams to develop, test, and deploy their features as separate components with their own release cycles.
+  </Accordion>
+
+  <Accordion title="A/B Testing & Feature Flags">
+    Deploy multiple versions of components simultaneously and control which version users see without redeploying your main application.
+  </Accordion>
+</AccordionGroup>
+
+## Why OpenComponents?
+
+<Info>
+  OpenComponents has been battle-tested in production environments, serving millions of requests daily. It provides the infrastructure for distributed front-end development without the complexity.
+</Info>
+
+OpenComponents bridges the gap between microservices architecture and front-end development. Just as microservices allow backend teams to deploy independently, OpenComponents enables front-end teams to:
+
+- **Deploy independently** - Update components without redeploying consuming applications
+- **Scale independently** - Components are served from a registry with built-in caching and CDN support
+- **Version independently** - Multiple versions coexist, allowing gradual rollouts
+- **Develop independently** - Teams own their components end-to-end
+
+## Requirements
+
+<Note>
+  OpenComponents requires **Node.js 18 or higher**
+</Note>
+
+The framework is designed to work with modern Node.js versions and supports both CommonJS and ES modules.
+
+## Getting Started
+
+Ready to build your first component? Head over to the [Quick Start Guide](/quickstart) to create your first OpenComponents component in minutes.
+
+## Learn More
+
+- [Installation Guide](/installation) - Set up your development environment
+- [GitHub Repository](https://github.com/opencomponents/oc) - Explore the source code
+- [Blog Post](http://tech.opentable.co.uk/blog/2016/04/27/opencomponents-microservices-in-the-front-end-world/) - Deep dive into the architecture
+- [Awesome OC](https://github.com/matteofigus/awesome-oc) - Community resources and plugins

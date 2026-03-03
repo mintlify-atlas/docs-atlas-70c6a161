@@ -1,0 +1,369 @@
+---
+title: oc registry
+description: Manage OpenComponents registries in your project
+---
+
+The `registry` command manages the list of OpenComponents registries for your project. Registries are stored in an `oc.json` file and are used by commands like [publish](/cli/publish) and [validate](/cli/validate).
+
+## Usage
+
+```bash
+oc registry <command>
+```
+
+## Subcommands
+
+- [**add**](#oc-registry-add) - Add a registry to the project
+- [**ls**](#oc-registry-ls) - List all registries in the project
+- [**remove**](#oc-registry-remove) - Remove a registry from the project
+
+---
+
+## oc registry add
+
+Add a registry URL to the project's `oc.json` file.
+
+### Usage
+
+```bash
+oc registry add <registryUrl>
+```
+
+### Arguments
+
+#### `registryUrl` (required)
+
+The URL of the registry to add.
+
+- Must be a complete HTTP/HTTPS URL
+- Should end with a trailing slash (will be normalized automatically)
+- Must be a valid, accessible registry endpoint
+
+### Examples
+
+#### Add a single registry
+
+```bash
+oc registry add http://my-registry.example.com/
+```
+
+#### Add a local registry
+
+```bash
+oc registry add http://localhost:3000/
+```
+
+#### Add a staging registry
+
+```bash
+oc registry add https://staging-registry.company.com/
+```
+
+### Output
+
+```bash
+$ oc registry add http://my-registry.example.com/
+
+✓ Added registry: http://my-registry.example.com/
+```
+
+### oc.json format
+
+After running the command, your `oc.json` will look like:
+
+```json
+{
+  "registries": [
+    "http://my-registry.example.com/"
+  ]
+}
+```
+
+---
+
+## oc registry ls
+
+List all registries configured for the project.
+
+### Usage
+
+```bash
+oc registry ls
+```
+
+### Examples
+
+```bash
+oc registry ls
+```
+
+### Output
+
+```bash
+$ oc registry ls
+
+Registries:
+├── http://my-registry.example.com/
+├── http://staging-registry.example.com/
+└── http://localhost:3000/
+```
+
+If no registries are configured:
+
+```bash
+$ oc registry ls
+
+No registries configured
+```
+
+---
+
+## oc registry remove
+
+Remove a registry URL from the project's `oc.json` file.
+
+### Usage
+
+```bash
+oc registry remove <registryUrl>
+```
+
+### Arguments
+
+#### `registryUrl` (required)
+
+The URL of the registry to remove.
+
+- Must match exactly with a registry in `oc.json`
+- URLs are normalized (trailing slashes are handled automatically)
+
+### Examples
+
+#### Remove a registry
+
+```bash
+oc registry remove http://my-registry.example.com/
+```
+
+#### Remove localhost registry
+
+```bash
+oc registry remove http://localhost:3000/
+```
+
+### Output
+
+```bash
+$ oc registry remove http://my-registry.example.com/
+
+✓ Removed registry: http://my-registry.example.com/
+```
+
+If registry not found:
+
+```bash
+$ oc registry remove http://unknown-registry.com/
+
+Error: Registry not found in oc.json
+```
+
+---
+
+## Configuration File
+
+Registries are stored in `oc.json` in your project root:
+
+```json
+{
+  "registries": [
+    "http://production-registry.example.com/",
+    "http://staging-registry.example.com/"
+  ]
+}
+```
+
+### File location
+
+The `oc.json` file should be in:
+
+- The current working directory, or
+- The component directory, or  
+- The project root
+
+The CLI searches upward through parent directories to find the configuration file.
+
+### Manual editing
+
+You can also edit `oc.json` manually:
+
+```json
+{
+  "registries": [
+    "http://registry1.example.com/",
+    "http://registry2.example.com/"
+  ],
+  "development": {
+    "fallback": {
+      "url": "http://production-registry.example.com/",
+      "client": true
+    }
+  }
+}
+```
+
+## Common Workflows
+
+### Initial project setup
+
+```bash
+# Add production registry
+oc registry add https://registry.example.com/
+
+# Verify
+oc registry ls
+```
+
+### Multi-environment setup
+
+```bash
+# Add all environment registries
+oc registry add https://dev-registry.example.com/
+oc registry add https://staging-registry.example.com/
+oc registry add https://prod-registry.example.com/
+
+# List to verify
+oc registry ls
+```
+
+### Publishing to specific registries
+
+```bash
+# Method 1: Use configured registries
+oc registry add http://staging-registry.example.com/
+oc publish my-component/
+
+# Method 2: Override with --registries flag
+oc publish my-component/ --registries=http://staging-registry.example.com/
+```
+
+### Switching between environments
+
+```bash
+# Remove production, add staging
+oc registry remove https://prod-registry.example.com/
+oc registry add https://staging-registry.example.com/
+
+# Publish to staging
+oc publish my-component/
+```
+
+## Usage with Other Commands
+
+### Publish command
+
+The [publish](/cli/publish) command uses configured registries:
+
+```bash
+oc registry add http://registry.example.com/
+oc publish my-component/
+```
+
+Or override with `--registries`:
+
+```bash
+oc publish my-component/ --registries=http://other-registry.com/
+```
+
+### Validate command
+
+The [validate](/cli/validate) command validates against configured registries:
+
+```bash
+oc registry add http://registry.example.com/
+oc validate my-component/
+```
+
+Or override with `--registries`:
+
+```bash
+oc validate my-component/ --registries=http://registry.example.com/
+```
+
+## Error Handling
+
+### Invalid URL format
+
+```bash
+Error: Invalid registry URL
+```
+
+Make sure the URL includes the protocol (`http://` or `https://`).
+
+### Registry already exists
+
+```bash
+Warning: Registry already configured
+```
+
+The registry is already in `oc.json` and won't be added again.
+
+### Cannot connect to registry
+
+When publishing or validating:
+
+```bash
+Error: Failed to connect to registry
+```
+
+Verify:
+1. Registry URL is correct
+2. Registry is running and accessible
+3. Network connectivity
+4. Firewall settings
+
+### No registries configured
+
+```bash
+Error: No registries configured
+```
+
+Add at least one registry before publishing:
+
+```bash
+oc registry add http://registry.example.com/
+```
+
+## Best Practices
+
+1. **Use HTTPS in production** - Always use secure URLs for production registries
+2. **Keep oc.json in version control** - Commit the configuration for team consistency
+3. **Document registries** - Add comments in README about which registries to use
+4. **Environment-specific configs** - Use different `oc.json` files for different environments
+5. **Validate URLs** - Ensure registries are accessible before adding them
+
+## Version Control
+
+The `oc.json` file should typically be committed to version control:
+
+```bash
+git add oc.json
+git commit -m "Add registry configuration"
+```
+
+This ensures all team members use the same registries.
+
+### .gitignore considerations
+
+Do **not** add `oc.json` to `.gitignore` - it should be shared across the team.
+
+However, you might want to ignore local overrides:
+
+```
+oc.local.json
+```
+
+## Related Commands
+
+- [**publish**](/cli/publish) - Publish components to configured registries
+- [**validate**](/cli/validate) - Validate components against registry requirements
+- [**dev**](/cli/dev) - Configure fallback registry for local development

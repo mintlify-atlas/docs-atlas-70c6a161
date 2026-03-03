@@ -1,0 +1,490 @@
+---
+title: Registry Options
+description: Configuration options for the OpenComponents Registry
+---
+
+The `RegistryOptions` interface defines all configuration options for creating a registry instance.
+
+## Required Options
+
+<ParamField path="baseUrl" type="string" required>
+  Public base URL where the registry will be accessible by consumers. It must include the chosen prefix and end with a trailing slash.
+  
+  **Example:** `"https://components.mycompany.com/"`
+  
+  If the prefix is not included, the sanitizer will automatically append it.
+</ParamField>
+
+<ParamField path="storage" type="object" required>
+  Storage adapter configuration for component persistence.
+  
+  <Expandable title="properties">
+    <ParamField path="adapter" type="function" required>
+      Storage adapter factory function that returns a StorageAdapter instance.
+      
+      ```typescript
+      adapter: require('oc-s3-storage-adapter')
+      ```
+    </ParamField>
+    
+    <ParamField path="options" type="object" required>
+      Storage adapter-specific options. Must include `componentsDir` field.
+      
+      ```typescript
+      options: {
+        bucket: 'my-components',
+        region: 'us-east-1',
+        componentsDir: 'components'
+      }
+      ```
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Optional Options
+
+### Discovery
+
+<ParamField path="discovery" type="object | boolean" default="true">
+  Configuration for the HTML discovery page and API endpoints.
+  
+  Can be set to `false` to disable all discovery features, or an object with the following properties:
+  
+  <Expandable title="properties">
+    <ParamField path="ui" type="boolean" default="true">
+      Enables the HTML discovery page.
+    </ParamField>
+    
+    <ParamField path="api" type="boolean" default="true">
+      Enables API discovery endpoints.
+    </ParamField>
+    
+    <ParamField path="experimental" type="boolean" default="true">
+      Shows experimental components in the API.
+    </ParamField>
+    
+    <ParamField path="validate" type="boolean" default="false">
+      Enables validation for the discovery API.
+    </ParamField>
+    
+    <ParamField path="robots" type="boolean" default="true">
+      Appends `<meta name="robots" content="index, follow" />` to the HTML head.
+      Set to `false` to append `<meta name="robots" content="noindex, nofollow" />`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="discoveryFunc" type="function">
+  Function to dynamically decide whether discovery should be enabled for the current request.
+  
+  ```typescript
+  discoveryFunc: ({ host, secure }) => {
+    return host === 'internal.company.com';
+  }
+  ```
+</ParamField>
+
+### Server Configuration
+
+<ParamField path="port" type="number | string" default="process.env.PORT || 3000">
+  TCP port the HTTP server listens on.
+  
+  ```typescript
+  port: 3000
+  ```
+</ParamField>
+
+<ParamField path="prefix" type="string" default="'/'">
+  URL path prefix appended to every registry endpoint. Must start and end with a slash.
+  
+  ```typescript
+  prefix: '/components/'
+  ```
+</ParamField>
+
+<ParamField path="timeout" type="number" default="120000">
+  HTTP request timeout in milliseconds.
+  
+  ```typescript
+  timeout: 60000 // 1 minute
+  ```
+</ParamField>
+
+<ParamField path="keepAliveTimeout" type="number" default="5000">
+  Milliseconds the HTTP server keeps idle connections alive.
+  
+  ```typescript
+  keepAliveTimeout: 10000
+  ```
+</ParamField>
+
+<ParamField path="tempDir" type="string">
+  Directory used by the registry for temporary files.
+  
+  ```typescript
+  tempDir: '/tmp/oc-registry'
+  ```
+</ParamField>
+
+<ParamField path="verbosity" type="number" default="0">
+  Verbosity level of the console logger. `0` = silent.
+  
+  ```typescript
+  verbosity: 1 // Enable logging
+  ```
+</ParamField>
+
+### Component Configuration
+
+<ParamField path="components" type="string[]">
+  Restricts the registry to serve only the specified component names.
+  
+  ```typescript
+  components: ['header', 'footer', 'navigation']
+  ```
+</ParamField>
+
+<ParamField path="dependencies" type="string[]" default="[]">
+  Names of npm packages that components can `require` at runtime.
+  
+  ```typescript
+  dependencies: ['lodash', 'moment', 'axios']
+  ```
+</ParamField>
+
+<ParamField path="templates" type="Template[]" default="[]">
+  List of template engines available for rendering components.
+  
+  ```typescript
+  templates: [
+    require('oc-template-react'),
+    require('oc-template-handlebars')
+  ]
+  ```
+</ParamField>
+
+<ParamField path="executionTimeout" type="number">
+  Maximum execution time of a component's server-side logic, in seconds. When the timeout elapses, the registry returns a 500 error.
+  
+  If omitted, there is no execution timeout.
+  
+  ```typescript
+  executionTimeout: 5 // 5 seconds
+  ```
+</ParamField>
+
+### Local Development
+
+<ParamField path="local" type="boolean" default="false">
+  Indicates whether the registry serves components from the local file system (`true`) or from remote storage (`false`).
+  
+  ```typescript
+  local: true
+  ```
+</ParamField>
+
+<ParamField path="path" type="string">
+  Absolute path where local components are stored. Required when `local` is `true`.
+  
+  ```typescript
+  path: '/path/to/components'
+  ```
+</ParamField>
+
+<ParamField path="hotReloading" type="boolean" default="!!local">
+  Enables hot-reloading of component code. Defaults to `true` when `local` is `true`.
+  
+  ```typescript
+  hotReloading: true
+  ```
+</ParamField>
+
+<ParamField path="liveReloadPort" type="number">
+  TCP port of the LiveReload server used by the preview page.
+  
+  ```typescript
+  liveReloadPort: 35729
+  ```
+</ParamField>
+
+### Publishing
+
+<ParamField path="publishAuth" type="object">
+  Authentication strategy for component publishing.
+  
+  **Basic authentication with single user:**
+  ```typescript
+  publishAuth: {
+    type: 'basic',
+    username: 'admin',
+    password: 'secret'
+  }
+  ```
+  
+  **Basic authentication with multiple users:**
+  ```typescript
+  publishAuth: {
+    type: 'basic',
+    logins: [
+      { username: 'user1', password: 'pass1' },
+      { username: 'user2', password: 'pass2' }
+    ]
+  }
+  ```
+  
+  **Custom authentication:**
+  ```typescript
+  publishAuth: {
+    type: customAuthPlugin,
+    // ... custom options
+  }
+  ```
+</ParamField>
+
+<ParamField path="publishValidation" type="function">
+  Custom validation logic executed during component publishing.
+  
+  ```typescript
+  publishValidation: (pkgJson, context) => {
+    if (!pkgJson.name.startsWith('my-prefix-')) {
+      return {
+        isValid: false,
+        error: 'Component name must start with my-prefix-'
+      };
+    }
+    return { isValid: true };
+  }
+  ```
+</ParamField>
+
+<ParamField path="postRequestPayloadSize" type="string | number">
+  Maximum allowed `Content-Length` for publish requests. Accepts any value supported by the `bytes` module.
+  
+  ```typescript
+  postRequestPayloadSize: '10mb'
+  ```
+</ParamField>
+
+<ParamField path="tarExtractMode" type="number" default="0o766">
+  File and directory mode (octal) applied when extracting tarballs during publishing.
+  
+  ```typescript
+  tarExtractMode: 0o755
+  ```
+</ParamField>
+
+### Advanced
+
+<ParamField path="baseUrlFunc" type="function">
+  Dynamically compute the `baseUrl` for the incoming request. If provided, it overrides the static `baseUrl`.
+  
+  ```typescript
+  baseUrlFunc: ({ host, secure }) => {
+    const protocol = secure ? 'https' : 'http';
+    return `${protocol}://${host}/components/`;
+  }
+  ```
+</ParamField>
+
+<ParamField path="env" type="object" default="{}">
+  Environment variables passed to components in `context.env`.
+  
+  ```typescript
+  env: {
+    API_ENDPOINT: 'https://api.mycompany.com',
+    ENVIRONMENT: 'production'
+  }
+  ```
+</ParamField>
+
+<ParamField path="preload" type="string">
+  JavaScript code to be included in the preview HTML's `<head>` section. Can be either a filepath to a JS script or inline JavaScript code.
+  
+  ```typescript
+  // Filepath
+  preload: 'path/to/script.js'
+  
+  // Inline code
+  preload: "console.log('Hello from preload script');"
+  ```
+</ParamField>
+
+<ParamField path="fallbackRegistryUrl" type="string">
+  URL of a secondary registry that will be queried if a component cannot be found on this instance. A trailing slash is appended automatically.
+  
+  ```typescript
+  fallbackRegistryUrl: 'https://backup-registry.mycompany.com'
+  ```
+</ParamField>
+
+<ParamField path="fallbackClient" type="boolean" default="false">
+  Enables the fallback client to be used.
+  
+  ```typescript
+  fallbackClient: true
+  ```
+</ParamField>
+
+<ParamField path="customHeadersToSkipOnWeakVersion" type="string[]" default="[]">
+  List of header names (lower-case) to omit from the response when a fallback/weak component version is served.
+  
+  ```typescript
+  customHeadersToSkipOnWeakVersion: ['x-custom-header', 'x-version']
+  ```
+</ParamField>
+
+<ParamField path="pollingInterval" type="number" default="5">
+  Seconds between each poll of the storage adapter for changes.
+  
+  ```typescript
+  pollingInterval: 10
+  ```
+</ParamField>
+
+<ParamField path="refreshInterval" type="number">
+  Seconds between each refresh of the internal component list cache.
+  
+  ```typescript
+  refreshInterval: 60
+  ```
+</ParamField>
+
+<ParamField path="routes" type="array">
+  Additional Express routes to mount on the registry application.
+  
+  ```typescript
+  routes: [
+    {
+      route: '/health',
+      method: 'get',
+      handler: (req, res) => res.json({ status: 'ok' })
+    },
+    {
+      route: '/custom',
+      method: 'post',
+      handler: './path/to/handler.js'
+    }
+  ]
+  ```
+</ParamField>
+
+<ParamField path="compileClient" type="boolean | object" default="true">
+  Options for the oc-client-browser compilation. Set to `false` to disable compilation.
+  
+  ```typescript
+  // Disable compilation
+  compileClient: false
+  
+  // Custom options
+  compileClient: {
+    imports: {
+      'react': 'React',
+      'react-dom': 'ReactDOM'
+    }
+  }
+  ```
+</ParamField>
+
+### S3 Storage Shortcut
+
+<ParamField path="s3" type="object">
+  Convenience S3 configuration. If present, the registry will create a storage adapter automatically.
+  
+  <Expandable title="properties">
+    <ParamField path="bucket" type="string" required>
+      S3 bucket name.
+    </ParamField>
+    
+    <ParamField path="region" type="string" required>
+      AWS region.
+    </ParamField>
+    
+    <ParamField path="componentsDir" type="string" required>
+      Directory prefix for components in the bucket.
+    </ParamField>
+    
+    <ParamField path="key" type="string">
+      AWS access key ID.
+    </ParamField>
+    
+    <ParamField path="secret" type="string">
+      AWS secret access key.
+    </ParamField>
+  </Expandable>
+  
+  ```typescript
+  s3: {
+    bucket: 'my-components',
+    region: 'us-east-1',
+    componentsDir: 'components',
+    key: 'AWS_ACCESS_KEY',
+    secret: 'AWS_SECRET_KEY'
+  }
+  ```
+</ParamField>
+
+## Complete Example
+
+```typescript
+import registry from 'oc';
+
+const app = registry({
+  // Required
+  baseUrl: 'https://components.mycompany.com/',
+  
+  // Server
+  port: 3000,
+  prefix: '/components/',
+  timeout: 60000,
+  verbosity: 1,
+  
+  // Storage
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  },
+  
+  // Components
+  dependencies: ['lodash', 'moment'],
+  templates: [
+    require('oc-template-react'),
+    require('oc-template-handlebars')
+  ],
+  executionTimeout: 5,
+  
+  // Discovery
+  discovery: {
+    ui: true,
+    api: true,
+    experimental: true,
+    robots: true
+  },
+  
+  // Publishing
+  publishAuth: {
+    type: 'basic',
+    username: 'admin',
+    password: 'secret'
+  },
+  publishValidation: (pkgJson, context) => {
+    return { isValid: true };
+  },
+  
+  // Environment
+  env: {
+    API_ENDPOINT: 'https://api.mycompany.com'
+  }
+});
+
+app.start((err, data) => {
+  if (err) {
+    console.error('Registry failed to start:', err);
+    process.exit(1);
+  }
+  console.log('Registry started successfully!');
+});
+```

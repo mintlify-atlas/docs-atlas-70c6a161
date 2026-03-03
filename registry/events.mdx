@@ -1,0 +1,538 @@
+---
+title: Events
+description: Subscribe to Registry lifecycle and operational events
+---
+
+The Registry emits events throughout its lifecycle, allowing you to monitor operations, collect metrics, and respond to component publishing and retrieval.
+
+## Overview
+
+Events are emitted via the `eventsHandler` module:
+
+```javascript
+src/registry/domain/events-handler.ts
+```
+
+Subscribe to events using the `on()` method:
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+registry.on('start', () => {
+  console.log('Registry started');
+});
+
+registry.on('component-published', (data) => {
+  console.log(`Published: ${data.componentName}@${data.componentVersion}`);
+});
+
+registry.start(...);
+```
+
+## Event Types
+
+The Registry emits these events:
+
+### `start`
+
+Emitted when the Registry server starts successfully.
+
+```javascript
+registry.on('start', (data) => {
+  console.log('Registry is running');
+});
+```
+
+**Data:** `{}`
+
+### `error`
+
+Emitted when an error occurs.
+
+```javascript
+registry.on('error', (data) => {
+  console.error(`Error [${data.code}]: ${data.message}`);
+});
+```
+
+**Data:**
+
+```typescript
+{
+  code: string;      // Error code
+  message: string;   // Error message
+}
+```
+
+**Common error codes:**
+- `EXPRESS_ERROR`: HTTP server error
+- `STORAGE_ERROR`: Storage adapter error
+- `COMPONENT_ERROR`: Component execution error
+
+### `request`
+
+Emitted for every HTTP request handled by the Registry.
+
+```javascript
+registry.on('request', (data) => {
+  console.log(`${data.method} ${data.path} - ${data.statusCode} (${data.duration}ms)`);
+});
+```
+
+**Data:**
+
+```typescript
+{
+  body: unknown;                    // Request body
+  duration: number;                 // Request duration in ms
+  headers: IncomingHttpHeaders;     // Request headers
+  method: string;                   // HTTP method
+  path: string;                     // Request path
+  relativeUrl: string;              // Relative URL
+  query: Record<string, unknown>;   // Query parameters
+  url: string;                      // Full URL
+  statusCode: number;               // Response status code
+  errorDetails?: string;            // Error details (if error)
+  errorCode?: string;               // Error code (if error)
+}
+```
+
+### `component-retrieved`
+
+Emitted when a component is successfully retrieved and rendered.
+
+```javascript
+registry.on('component-retrieved', (data) => {
+  console.log(`Retrieved: ${data.name} (${data.duration}ms)`);
+});
+```
+
+**Data:**
+
+```typescript
+{
+  headers: IncomingHttpHeaders;   // Request headers
+  name: string;                   // Component name
+  parameters: IncomingHttpHeaders; // Component parameters
+  requestVersion: string;         // Requested version
+  duration: number;               // Retrieval duration in ms
+}
+```
+
+### `component-published`
+
+Emitted when a component is successfully published.
+
+```javascript
+registry.on('component-published', (data) => {
+  console.log(`Published: ${data.componentName}@${data.componentVersion} by ${data.user}`);
+});
+```
+
+**Data:**
+
+```typescript
+{
+  componentName: string;        // Component name
+  componentVersion: string;     // Component version
+  packageJson: Component;       // Full package.json data
+  componentFolder: string;      // Temporary folder path
+  user?: string;                // Authenticated user (if auth enabled)
+}
+```
+
+### `data-provider-error`
+
+Emitted when a component's data provider fails.
+
+```javascript
+registry.on('data-provider-error', (data) => {
+  console.error(`Data provider error in ${data.name}@${data.version}:`, data.error.message);
+});
+```
+
+**Data:**
+
+```typescript
+{
+  name: string;                              // Component name
+  version: string;                           // Component version
+  parameters: Record<string, string | boolean | number>; // Parameters
+  requestVersion: string;                    // Requested version
+  status: number;                            // HTTP status code
+  error: Error;                              // Error object
+}
+```
+
+### `cache-poll`
+
+Emitted when the component cache is polled from storage.
+
+```javascript
+registry.on('cache-poll', (count) => {
+  console.log(`Cache poll: ${count} components`);
+});
+```
+
+**Data:** `number` (component count)
+
+## Event Subscription
+
+### `on(event, listener)`
+
+Subscribe to an event:
+
+```javascript
+const listener = (data) => {
+  console.log('Event fired:', data);
+};
+
+registry.on('component-published', listener);
+```
+
+Multiple listeners can subscribe to the same event:
+
+```javascript
+registry.on('component-published', (data) => {
+  console.log('Listener 1:', data.componentName);
+});
+
+registry.on('component-published', (data) => {
+  console.log('Listener 2:', data.componentVersion);
+});
+```
+
+### `off(event, listener)`
+
+Unsubscribe from an event:
+
+```javascript
+const listener = (data) => {
+  console.log(data);
+};
+
+registry.on('component-published', listener);
+
+// Later...
+registry.off('component-published', listener);
+```
+
+**Note:** You must pass the exact same function reference to `off()` that you passed to `on()`.
+
+## Common Use Cases
+
+### Logging
+
+Log all component operations:
+
+```javascript
+const registry = oc.registry({ /* ... */ });
+
+registry.on('start', () => {
+  console.log('[Registry] Started');
+});
+
+registry.on('component-published', (data) => {
+  console.log(`[Publish] ${data.componentName}@${data.componentVersion} by ${data.user || 'unknown'}`);
+});
+
+registry.on('component-retrieved', (data) => {
+  console.log(`[Retrieve] ${data.name}@${data.requestVersion} (${data.duration}ms)`);
+});
+
+registry.on('error', (data) => {
+  console.error(`[Error] ${data.code}: ${data.message}`);
+});
+
+registry.start(...);
+```
+
+### Metrics Collection
+
+Collect metrics for monitoring:
+
+```javascript
+const metrics = {
+  requests: 0,
+  publishes: 0,
+  retrievals: 0,
+  errors: 0,
+  totalDuration: 0
+};
+
+registry.on('request', (data) => {
+  metrics.requests++;
+  metrics.totalDuration += data.duration;
+  
+  if (data.errorCode) {
+    metrics.errors++;
+  }
+});
+
+registry.on('component-published', () => {
+  metrics.publishes++;
+});
+
+registry.on('component-retrieved', () => {
+  metrics.retrievals++;
+});
+
+// Expose metrics endpoint
+registry.app.get('/metrics', (req, res) => {
+  res.json({
+    ...metrics,
+    avgDuration: metrics.requests > 0 ? metrics.totalDuration / metrics.requests : 0
+  });
+});
+
+registry.start(...);
+```
+
+### Prometheus Metrics
+
+Export metrics to Prometheus:
+
+```javascript
+const promClient = require('prom-client');
+
+const publishCounter = new promClient.Counter({
+  name: 'oc_component_publishes_total',
+  help: 'Total number of component publishes',
+  labelNames: ['component']
+});
+
+const retrievalCounter = new promClient.Counter({
+  name: 'oc_component_retrievals_total',
+  help: 'Total number of component retrievals',
+  labelNames: ['component', 'version']
+});
+
+const retrievalDuration = new promClient.Histogram({
+  name: 'oc_component_retrieval_duration_seconds',
+  help: 'Duration of component retrievals',
+  labelNames: ['component']
+});
+
+registry.on('component-published', (data) => {
+  publishCounter.labels(data.componentName).inc();
+});
+
+registry.on('component-retrieved', (data) => {
+  retrievalCounter.labels(data.name, data.requestVersion).inc();
+  retrievalDuration.labels(data.name).observe(data.duration / 1000);
+});
+
+registry.app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', promClient.register.contentType);
+  res.end(await promClient.register.metrics());
+});
+
+registry.start(...);
+```
+
+### Slack Notifications
+
+Send notifications to Slack:
+
+```javascript
+const axios = require('axios');
+
+const SLACK_WEBHOOK = process.env.SLACK_WEBHOOK_URL;
+
+registry.on('component-published', async (data) => {
+  await axios.post(SLACK_WEBHOOK, {
+    text: `✅ Component published: ${data.componentName}@${data.componentVersion} by ${data.user}`
+  });
+});
+
+registry.on('error', async (data) => {
+  await axios.post(SLACK_WEBHOOK, {
+    text: `❌ Registry error: [${data.code}] ${data.message}`
+  });
+});
+
+registry.start(...);
+```
+
+### Audit Trail
+
+Store an audit trail of publishes:
+
+```javascript
+const db = require('./database');
+
+registry.on('component-published', async (data) => {
+  await db.audit.create({
+    action: 'publish',
+    componentName: data.componentName,
+    componentVersion: data.componentVersion,
+    user: data.user,
+    timestamp: new Date(),
+    packageJson: data.packageJson
+  });
+});
+
+registry.start(...);
+```
+
+### Cache Warming
+
+Pre-fetch components after cache poll:
+
+```javascript
+registry.on('cache-poll', async (count) => {
+  console.log(`Cache polled: ${count} components`);
+  
+  // Pre-fetch popular components
+  const popularComponents = ['header', 'footer', 'navigation'];
+  
+  for (const name of popularComponents) {
+    try {
+      await fetch(`${config.baseUrl}${name}`);
+    } catch (error) {
+      console.error(`Failed to warm cache for ${name}:`, error);
+    }
+  }
+});
+
+registry.start(...);
+```
+
+### Error Alerting
+
+Alert on critical errors:
+
+```javascript
+const alerting = require('./alerting');
+
+registry.on('error', (data) => {
+  if (data.code === 'EXPRESS_ERROR') {
+    alerting.critical(`Registry server error: ${data.message}`);
+  }
+  
+  if (data.code === 'STORAGE_ERROR') {
+    alerting.warning(`Storage error: ${data.message}`);
+  }
+});
+
+registry.on('data-provider-error', (data) => {
+  if (data.status >= 500) {
+    alerting.warning(`Component ${data.name}@${data.version} data provider failed`);
+  }
+});
+
+registry.start(...);
+```
+
+## Testing with Events
+
+Events are useful for testing:
+
+```javascript
+const assert = require('assert');
+
+let publishCount = 0;
+
+registry.on('component-published', (data) => {
+  publishCount++;
+  assert.strictEqual(data.componentName, 'test-component');
+  assert.strictEqual(data.componentVersion, '1.0.0');
+});
+
+// Publish component
+await publishComponent(registry, 'test-component', '1.0.0');
+
+assert.strictEqual(publishCount, 1, 'Expected one publish event');
+```
+
+## Event Handler Internals
+
+The event handler is defined in:
+
+```javascript
+src/registry/domain/events-handler.ts:64
+```
+
+It provides:
+
+- `fire(eventName, data)`: Emit an event
+- `on(eventName, listener)`: Subscribe to an event
+- `off(eventName, listener)`: Unsubscribe from an event
+- `reset()`: Remove all event listeners (for testing)
+
+## Best Practices
+
+### 1. Don't Block Event Loop
+
+Event listeners should be fast and non-blocking:
+
+```javascript
+// ❌ Bad - blocks event loop
+registry.on('component-published', (data) => {
+  const result = expensiveSync Operation(data);
+});
+
+// ✅ Good - async
+registry.on('component-published', async (data) => {
+  await expensiveAsyncOperation(data);
+});
+```
+
+### 2. Handle Errors in Listeners
+
+Errors in event listeners don't crash the Registry, but they're silently swallowed:
+
+```javascript
+registry.on('component-published', async (data) => {
+  try {
+    await externalApiCall(data);
+  } catch (error) {
+    console.error('Failed to notify external API:', error);
+  }
+});
+```
+
+### 3. Unsubscribe When Done
+
+If you need temporary listeners, unsubscribe them:
+
+```javascript
+const listener = (data) => {
+  console.log(data);
+  // Auto-unsubscribe after first event
+  registry.off('component-published', listener);
+};
+
+registry.on('component-published', listener);
+```
+
+### 4. Subscribe Before Start
+
+Subscribe to events **before** calling `start()` to avoid missing early events:
+
+```javascript
+// ✅ Good - subscribe first
+registry.on('start', () => console.log('Started'));
+registry.start(...);
+
+// ❌ Bad - might miss 'start' event
+registry.start(...);
+registry.on('start', () => console.log('Started'));
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Middleware" icon="code" href="/registry/middleware">
+    Extend Registry with middleware
+  </Card>
+  <Card title="Configuration" icon="gear" href="/registry/configuration">
+    Explore configuration options
+  </Card>
+  <Card title="Authentication" icon="lock" href="/registry/authentication">
+    Secure component publishing
+  </Card>
+  <Card title="Storage Adapters" icon="database" href="/registry/storage-adapters">
+    Configure storage backends
+  </Card>
+</CardGroup>

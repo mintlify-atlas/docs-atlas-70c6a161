@@ -1,0 +1,437 @@
+---
+title: 'Nested Components'
+description: 'Render components within other components'
+icon: 'layer-group'
+---
+
+## Overview
+
+Nested components allow you to render one or more OpenComponents from within another component's server-side code. This enables composition patterns and code reuse across your component library.
+
+## The Nested Renderer
+
+The nested renderer is available through the component context and provides methods for rendering components (from `src/registry/domain/nested-renderer.ts:1-89`).
+
+## Rendering a Single Component
+
+Use `renderComponent` to render a single nested component:
+
+### Method Signature
+
+```typescript
+renderComponent(
+  componentName: string,
+  options?: {
+    ip?: string;
+    version?: string;
+    name?: string;
+    headers?: Record<string, string>;
+    parameters?: Record<string, string>;
+  }
+): Promise<string>
+```
+
+### Parameters
+
+<ParamField path="componentName" type="string" required>
+  The name of the component to render
+</ParamField>
+
+<ParamField path="options.version" type="string">
+  Specific version of the component (defaults to latest)
+</ParamField>
+
+<ParamField path="options.parameters" type="object">
+  Parameters to pass to the nested component
+</ParamField>
+
+<ParamField path="options.headers" type="object">
+  HTTP headers to pass to the nested component
+</ParamField>
+
+<ParamField path="options.ip" type="string">
+  IP address to use for the request
+</ParamField>
+
+### Example
+
+```javascript
+// server.js
+export const data = async (context) => {
+  const { renderComponent } = context;
+  
+  try {
+    const html = await renderComponent('header', {
+      version: '1.2.0',
+      parameters: {
+        title: 'My Page',
+        showNav: 'true'
+      }
+    });
+    
+    return {
+      headerHtml: html
+    };
+  } catch (error) {
+    return {
+      headerHtml: '',
+      error: error.message
+    };
+  }
+};
+```
+
+## Rendering Multiple Components
+
+Use `renderComponents` to render multiple components in parallel:
+
+### Method Signature
+
+```typescript
+renderComponents(
+  components: Array<{
+    name: string;
+    version?: string;
+    parameters?: Record<string, string>;
+    ip?: string;
+  }>,
+  options?: {
+    headers?: Record<string, string>;
+    parameters?: Record<string, string>;
+  }
+): Promise<Array<string | Error>>
+```
+
+### Parameters
+
+<ParamField path="components" type="array" required>
+  Array of component configurations to render
+  
+  Each component should have:
+  - `name`: Component name (required)
+  - `version`: Specific version
+  - `parameters`: Component parameters
+</ParamField>
+
+<ParamField path="options" type="object">
+  Shared options applied to all components
+  
+  - `headers`: Shared HTTP headers
+  - `parameters`: Base parameters (merged with component-specific ones)
+</ParamField>
+
+### Example
+
+```javascript
+// server.js
+export const data = async (context) => {
+  const { renderComponents } = context;
+  
+  try {
+    const results = await renderComponents(
+      [
+        {
+          name: 'header',
+          parameters: { title: 'My Page' }
+        },
+        {
+          name: 'footer',
+          version: '2.0.0',
+          parameters: { year: '2024' }
+        },
+        {
+          name: 'sidebar',
+          parameters: { items: '5' }
+        }
+      ],
+      {
+        headers: {
+          'x-custom-header': 'value'
+        }
+      }
+    );
+    
+    // Check for errors
+    const [header, footer, sidebar] = results;
+    
+    return {
+      header: header instanceof Error ? '' : header,
+      footer: footer instanceof Error ? '' : footer,
+      sidebar: sidebar instanceof Error ? '' : sidebar
+    };
+  } catch (error) {
+    return {
+      error: error.message
+    };
+  }
+};
+```
+
+## Error Handling
+
+Both methods return promises that can be rejected or resolve to Error objects:
+
+```javascript
+export const data = async (context) => {
+  const { renderComponent, renderComponents } = context;
+  
+  // Single component error handling
+  try {
+    const html = await renderComponent('header');
+    return { header: html };
+  } catch (error) {
+    console.error('Failed to render header:', error);
+    return { header: '', error: error.message };
+  }
+  
+  // Multiple components error handling
+  const results = await renderComponents([
+    { name: 'header' },
+    { name: 'footer' }
+  ]);
+  
+  const [header, footer] = results.map((result) => {
+    if (result instanceof Error) {
+      console.error('Component render error:', result);
+      return '';
+    }
+    return result;
+  });
+  
+  return { header, footer };
+};
+```
+
+## Using Nested Components in Templates
+
+Once rendered, use the HTML in your templates:
+
+### Handlebars
+
+```handlebars
+<div class="page">
+  {{{headerHtml}}}
+  
+  <main>
+    <h1>{{title}}</h1>
+    <p>{{content}}</p>
+  </main>
+  
+  {{{footerHtml}}}
+</div>
+```
+
+### Jade/Pug
+
+```pug
+.page
+  != headerHtml
+  
+  main
+    h1= title
+    p= content
+  
+  != footerHtml
+```
+
+### ES6
+
+```javascript
+export default (props) => `
+  <div class="page">
+    ${props.headerHtml}
+    
+    <main>
+      <h1>${props.title}</h1>
+      <p>${props.content}</p>
+    </main>
+    
+    ${props.footerHtml}
+  </div>
+`;
+```
+
+## Advanced Patterns
+
+### Conditional Rendering
+
+```javascript
+export const data = async (context) => {
+  const { renderComponent, params } = context;
+  
+  const components = {};
+  
+  if (params.showHeader) {
+    components.header = await renderComponent('header', {
+      parameters: { title: params.title }
+    }).catch(() => '');
+  }
+  
+  if (params.showSidebar) {
+    components.sidebar = await renderComponent('sidebar').catch(() => '');
+  }
+  
+  return components;
+};
+```
+
+### Dynamic Component Lists
+
+```javascript
+export const data = async (context) => {
+  const { renderComponents, params } = context;
+  
+  // Render a list of widgets
+  const widgetNames = params.widgets.split(',');
+  
+  const components = widgetNames.map((name) => ({
+    name: `widget-${name}`,
+    parameters: { config: params[`${name}_config`] }
+  }));
+  
+  const results = await renderComponents(components);
+  
+  // Filter out errors and return successful renders
+  const widgets = results
+    .filter((result) => !(result instanceof Error))
+    .join('\n');
+  
+  return { widgets };
+};
+```
+
+### Passing Request Context
+
+```javascript
+export const data = async (context) => {
+  const { renderComponent, requestHeaders } = context;
+  
+  // Forward authentication headers to nested component
+  const html = await renderComponent('protected-content', {
+    headers: {
+      authorization: requestHeaders.authorization,
+      'x-user-id': requestHeaders['x-user-id']
+    },
+    parameters: {
+      userId: context.params.userId
+    }
+  });
+  
+  return { content: html };
+};
+```
+
+### Caching Nested Components
+
+```javascript
+const cache = new Map();
+
+export const data = async (context) => {
+  const { renderComponent } = context;
+  
+  const cacheKey = 'footer-v1';
+  
+  if (cache.has(cacheKey)) {
+    return { footer: cache.get(cacheKey) };
+  }
+  
+  const footer = await renderComponent('footer', {
+    version: '1.0.0'
+  });
+  
+  cache.set(cacheKey, footer);
+  
+  return { footer };
+};
+```
+
+## Performance Considerations
+
+<Card title="Parallel Rendering" icon="gauge-high">
+  Use `renderComponents` instead of multiple `renderComponent` calls to render components in parallel
+</Card>
+
+<Card title="Error Boundaries" icon="shield-halved">
+  Always handle errors to prevent nested component failures from breaking the parent component
+</Card>
+
+<Card title="Version Pinning" icon="thumbtack">
+  Pin nested component versions in production to ensure stability
+</Card>
+
+<Card title="Avoid Deep Nesting" icon="diagram-nested">
+  Keep component hierarchies shallow to minimize complexity and improve performance
+</Card>
+
+## Best Practices
+
+### Use Semantic Versioning
+
+```javascript
+// Good: Pin to minor version
+const html = await renderComponent('header', {
+  version: '~1.2.0'
+});
+
+// Better: Pin to specific version in production
+const version = process.env.NODE_ENV === 'production' ? '1.2.3' : '~1.2.0';
+const html = await renderComponent('header', { version });
+```
+
+### Provide Fallbacks
+
+```javascript
+export const data = async (context) => {
+  const { renderComponent } = context;
+  
+  const header = await renderComponent('header')
+    .catch(() => '<header>Default Header</header>');
+  
+  return { header };
+};
+```
+
+### Monitor Performance
+
+```javascript
+export const data = async (context) => {
+  const { renderComponent } = context;
+  
+  const startTime = Date.now();
+  const html = await renderComponent('complex-component');
+  const duration = Date.now() - startTime;
+  
+  if (duration > 1000) {
+    console.warn(`Slow nested component render: ${duration}ms`);
+  }
+  
+  return { html };
+};
+```
+
+## Implementation Details
+
+The nested renderer implementation (from `src/registry/domain/nested-renderer.ts:35-88`):
+
+- Validates component names
+- Sets appropriate headers for server-side rendering
+- Handles version resolution
+- Manages parameter merging
+- Provides error handling and recovery
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Component Server Logic" icon="server" href="/components/server">
+    Learn more about server-side data fetching
+  </Card>
+  <Card title="Component Parameters" icon="sliders" href="/components/parameters">
+    Define and validate component parameters
+  </Card>
+  <Card title="Data Providers" icon="database" href="/components/data-providers">
+    Implement server-side logic
+  </Card>
+  <Card title="Templates" icon="paint-brush" href="/components/templates">
+    Choose and use template engines
+  </Card>
+</CardGroup>

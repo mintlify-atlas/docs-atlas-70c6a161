@@ -1,0 +1,328 @@
+---
+title: 'Plugins'
+description: 'Extend OpenComponents functionality with custom plugins'
+icon: 'plug'
+---
+
+## Overview
+
+Plugins allow you to extend OpenComponents functionality by adding custom logic that can be invoked from component server-side code. They are particularly useful for sharing functionality across multiple components, such as data fetching, authentication, or custom business logic.
+
+## Plugin Interface
+
+A plugin is an object that conforms to the `Plugin` interface defined in `src/types.ts:434-504`:
+
+<ParamField path="name" type="string" required>
+  Unique identifier for the plugin
+</ParamField>
+
+<ParamField path="description" type="string">
+  Optional description of the plugin's purpose
+</ParamField>
+
+<ParamField path="options" type="any">
+  Configuration options passed to the plugin during registration
+</ParamField>
+
+<ParamField path="register" type="object" required>
+  Contains the plugin's registration and execution logic
+  
+  <ParamField path="register.register" type="function" required>
+    Initialization function called when the plugin is registered
+    
+    ```typescript
+    (options: T, dependencies: any, next: (error?: Error) => void) => void
+    ```
+  </ParamField>
+  
+  <ParamField path="register.execute" type="function" required>
+    The function that will be called when components invoke the plugin
+  </ParamField>
+  
+  <ParamField path="register.dependencies" type="string[]">
+    Array of plugin names that this plugin depends on
+  </ParamField>
+</ParamField>
+
+<ParamField path="context" type="boolean">
+  When `true`, the execute function receives a `PluginContext` object containing component name and version
+</ParamField>
+
+## Plugin Context
+
+When `context: true` is set, the plugin's execute function receives a context object:
+
+<ParamField path="name" type="string">
+  The name of the component calling the plugin
+</ParamField>
+
+<ParamField path="version" type="string">
+  The version of the component calling the plugin
+</ParamField>
+
+## Creating a Plugin
+
+### Basic Plugin (No Context)
+
+A basic plugin without context:
+
+```typescript
+import type { Plugin } from 'oc';
+
+const myPlugin: Plugin = {
+  name: 'myPlugin',
+  description: 'A simple plugin example',
+  register: {
+    register: (options, dependencies, next) => {
+      // Initialization logic
+      console.log('Plugin initialized with options:', options);
+      next();
+    },
+    execute: (param1, param2) => {
+      // Plugin logic
+      return param1 + param2;
+    }
+  }
+};
+
+export default myPlugin;
+```
+
+### Plugin with Context
+
+A plugin that receives component context:
+
+```typescript
+import type { Plugin, PluginContext } from 'oc';
+
+const contextPlugin: Plugin = {
+  name: 'contextPlugin',
+  description: 'Plugin with component context',
+  context: true,
+  register: {
+    register: (options, dependencies, next) => {
+      next();
+    },
+    execute: (context: PluginContext) => {
+      return (params: any) => {
+        console.log(`Called by ${context.name}@${context.version}`);
+        return params;
+      };
+    }
+  }
+};
+
+export default contextPlugin;
+```
+
+### Plugin with Dependencies
+
+Plugins can depend on other plugins:
+
+```typescript
+import type { Plugin } from 'oc';
+
+const dependentPlugin: Plugin = {
+  name: 'dependentPlugin',
+  register: {
+    dependencies: ['logger', 'cache'],
+    register: (options, dependencies, next) => {
+      // Access other plugins through dependencies
+      const { logger, cache } = dependencies;
+      next();
+    },
+    execute: (key) => {
+      // Plugin logic
+      return `Value for ${key}`;
+    }
+  }
+};
+
+export default dependentPlugin;
+```
+
+## Registering Plugins
+
+Register plugins with the registry instance before starting it:
+
+```typescript
+import { Registry } from 'oc';
+import myPlugin from './plugins/my-plugin';
+import authPlugin from './plugins/auth-plugin';
+
+const registry = Registry({
+  baseUrl: 'https://components.example.com/',
+  port: 3000
+});
+
+// Register plugins
+registry.register(myPlugin);
+registry.register(authPlugin, (error) => {
+  if (error) {
+    console.error('Failed to register auth plugin:', error);
+  }
+});
+
+// Start the registry
+registry.start((err, app) => {
+  if (err) {
+    console.error('Registry failed to start:', err);
+    return;
+  }
+  console.log('Registry started successfully');
+});
+```
+
+## Using Plugins in Components
+
+Once registered, plugins are available in component server-side code:
+
+```javascript
+// server.js
+export const data = (context, callback) => {
+  const { plugins } = context;
+  
+  // Call a plugin
+  const result = plugins.myPlugin('param1', 'param2');
+  
+  callback(null, {
+    result
+  });
+};
+```
+
+## Plugin Initialization
+
+The plugin initialization process (from `src/registry/domain/plugins-initialiser.ts:53-130`):
+
+1. **Validation**: All plugins are validated to ensure they implement the required interface
+2. **Dependency Resolution**: Plugin dependencies are checked and resolved using a dependency graph
+3. **Sequential Loading**: Plugins are loaded in order, respecting dependencies
+4. **Deferred Loading**: If a plugin's dependencies aren't ready, it's deferred until they are
+5. **Registration**: Each plugin's `register` function is called with options and dependencies
+
+## Best Practices
+
+<Card title="Keep plugins focused" icon="bullseye">
+  Each plugin should have a single, well-defined responsibility
+</Card>
+
+<Card title="Handle errors gracefully" icon="shield-check">
+  Always use the callback in the register function to report errors
+</Card>
+
+<Card title="Document dependencies" icon="link">
+  Clearly document which plugins your plugin depends on
+</Card>
+
+<Card title="Use options for configuration" icon="gear">
+  Make plugins configurable through the options parameter
+</Card>
+
+## Advanced Examples
+
+### Database Plugin
+
+```typescript
+import type { Plugin } from 'oc';
+import { Pool } from 'pg';
+
+interface DbOptions {
+  host: string;
+  database: string;
+  user: string;
+  password: string;
+}
+
+const databasePlugin: Plugin<DbOptions> = {
+  name: 'database',
+  description: 'PostgreSQL database access',
+  register: {
+    register: (options, dependencies, next) => {
+      const pool = new Pool(options);
+      
+      pool.connect((err) => {
+        if (err) {
+          return next(new Error(`Database connection failed: ${err.message}`));
+        }
+        next();
+      });
+    },
+    execute: (query: string, params: any[]) => {
+      return pool.query(query, params);
+    }
+  },
+  options: {
+    host: 'localhost',
+    database: 'mydb',
+    user: 'user',
+    password: 'password'
+  }
+};
+
+export default databasePlugin;
+```
+
+### HTTP Client Plugin
+
+```typescript
+import type { Plugin } from 'oc';
+import { request } from 'undici';
+
+const httpPlugin: Plugin = {
+  name: 'http',
+  description: 'HTTP request client',
+  context: true,
+  register: {
+    register: (options, dependencies, next) => {
+      next();
+    },
+    execute: (context) => {
+      return async (url: string, options: any = {}) => {
+        const response = await request(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+            'User-Agent': `${context.name}/${context.version}`
+          }
+        });
+        return response.body.json();
+      };
+    }
+  }
+};
+
+export default httpPlugin;
+```
+
+## Error Handling
+
+Plugins can fail during registration or execution. Always handle errors appropriately:
+
+```typescript
+const registry = Registry(config);
+
+registry.register(myPlugin, (error) => {
+  if (error) {
+    console.error('Plugin registration failed:', error);
+    process.exit(1);
+  }
+});
+
+registry.on('request', (data) => {
+  if (data.errorCode === 'PLUGIN_MISSING_FROM_REGISTRY') {
+    console.error('Plugin not found:', data.errorDetails);
+  }
+});
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Component Development" icon="cube" href="/components/server">
+    Learn how to use plugins in components
+  </Card>
+  <Card title="Registry Configuration" icon="server" href="/registry/configuration">
+    Configure your registry instance
+  </Card>
+</CardGroup>

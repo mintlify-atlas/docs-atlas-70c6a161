@@ -1,0 +1,90 @@
+---
+title: CLI Overview
+description: Complete reference for the OpenComponents CLI commands and options
+---
+
+The OpenComponents CLI (`oc`) is a command-line tool for developing, packaging, and publishing components. It provides a complete workflow for component development from initialization to deployment.
+
+## Installation
+
+The CLI is available as an npm package:
+
+```bash
+npm install -g oc
+```
+
+## Usage
+
+```bash
+oc <command> [options]
+```
+
+## Available Commands
+
+### Component Development
+
+- [**init**](/cli/init) - Create a new component from a template
+- [**dev**](/cli/dev) - Run a local development registry with hot reloading
+- [**mock**](/cli/mock) - Create static mocks for local development
+
+### Component Building & Publishing
+
+- [**package**](/cli/package) - Package a component for distribution
+- [**publish**](/cli/publish) - Publish a component to a registry
+- [**validate**](/cli/validate) - Validate a component against registry requirements
+
+### Component Testing
+
+- [**preview**](/cli/preview) - Preview a component in a test page
+
+### Registry Management
+
+- [**registry**](/cli/registry) - Manage registries in your project
+
+### Maintenance
+
+- [**clean**](/cli/clean) - Remove node_modules from component subfolders
+
+## Common Workflows
+
+### Creating a New Component
+
+```bash
+# Initialize a new component
+oc init my-component
+
+# Start development server
+oc dev . 3000
+
+# Preview the component
+oc preview http://localhost:3000/my-component
+```
+
+### Publishing a Component
+
+```bash
+# Validate the component
+oc validate my-component/
+
+# Package the component
+oc package my-component/
+
+# Publish to registry
+oc publish my-component/
+```
+
+## Configuration
+
+The CLI reads configuration from `oc.json` in your project root. See the configuration documentation for details.
+
+## Getting Help
+
+For help with any command:
+
+```bash
+oc <command> --help
+```
+
+## Node.js Version
+
+OpenComponents requires Node.js >= 18.

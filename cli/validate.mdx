@@ -1,0 +1,425 @@
+---
+title: oc validate
+description: Validate a component against registry requirements without publishing
+---
+
+The `validate` command checks if a component meets all the requirements for publishing to an OpenComponents registry. It performs the same validation as [publish](/cli/publish) but without actually uploading the component.
+
+## Usage
+
+```bash
+oc validate <componentPath> [options]
+```
+
+## Arguments
+
+### `componentPath` (required)
+
+The path to the component directory to validate.
+
+- Must contain a valid `package.json` with OpenComponents metadata
+- Can be a relative or absolute path
+
+## Options
+
+### `--skipPackage`
+
+Skip the packaging step and validate the existing `_package` directory.
+
+- **Type:** Boolean
+- **Default:** `false`
+- **Example:** `--skipPackage`
+
+Useful when the component is already packaged and you only want to validate the package contents.
+
+### `--registries`
+
+List of registry URLs to validate against.
+
+- **Type:** Array
+- **Example:** `--registries=http://registry1.com/ --registries=http://registry2.com/`
+
+Overrides the registries defined in `oc.json`. Allows validation against specific registries without modifying the configuration file.
+
+## Examples
+
+### Basic validation
+
+```bash
+oc validate my-component/
+```
+
+Packages and validates the component against registries in `oc.json`.
+
+### Validate existing package
+
+```bash
+oc validate my-component/ --skipPackage
+```
+
+Validates the existing `_package` directory without repackaging.
+
+### Validate against specific registry
+
+```bash
+oc validate my-component/ --registries=http://staging-registry.com/
+```
+
+### Validate against multiple registries
+
+```bash
+oc validate my-component/ --registries=http://registry1.com/ --registries=http://registry2.com/
+```
+
+Checks if the component meets requirements for multiple registries.
+
+## Output
+
+### Successful validation
+
+```bash
+$ oc validate my-component/
+
+Packaging "/path/to/my-component/_package"...
+✓ Packaged at /path/to/my-component/_package
+
+Validating against http://registry.example.com/...
+✓ Component is valid
+
+✓ Validation successful
+```
+
+### Validation errors
+
+```bash
+$ oc validate my-component/
+
+Packaging "/path/to/my-component/_package"...
+✓ Packaged at /path/to/my-component/_package
+
+Validating against http://registry.example.com/...
+✗ Validation failed:
+
+  - Component name must be lowercase
+  - Missing required field: oc.parameters
+  - Template type "oc-template-custom" is not supported by registry
+
+✗ Validation failed
+```
+
+## Validation Checks
+
+The validate command checks:
+
+### Component structure
+
+- Valid `package.json` format
+- Required OpenComponents metadata present
+- Component name follows naming conventions
+- Version follows semantic versioning
+
+### Template requirements
+
+- Template type is supported by the registry
+- Template compilation succeeds
+- Compiled template is valid
+
+### Dependencies
+
+- All dependencies are installable
+- No conflicting dependency versions
+- Required peer dependencies are specified
+
+### Registry compatibility
+
+- Component meets registry requirements
+- CLI version is compatible with registry
+- Node.js version is compatible with registry
+- Template type is supported by registry
+
+### File structure
+
+- Required files are present
+- File paths are correct
+- No forbidden files included
+
+### Package integrity
+
+- Package can be compressed
+- Package size is within limits
+- File hashes are correct
+
+## Common Validation Errors
+
+### Invalid component name
+
+```bash
+Error: Component name must be lowercase
+```
+
+**Fix:** Update `package.json`:
+
+```json
+{
+  "name": "my-component",  // lowercase only
+  ...
+}
+```
+
+### Missing OpenComponents metadata
+
+```bash
+Error: Missing required field: oc.parameters
+```
+
+**Fix:** Add OpenComponents configuration:
+
+```json
+{
+  "name": "my-component",
+  "oc": {
+    "files": {
+      "template": {
+        "type": "oc-template-es6",
+        "src": "template.html"
+      },
+      "data": "server.js"
+    },
+    "parameters": {}
+  }
+}
+```
+
+### Unsupported template type
+
+```bash
+Error: Template type "oc-template-custom" is not supported
+```
+
+**Fix:** Use a supported template type or install the template on the registry.
+
+### CLI version mismatch
+
+```bash
+Error: OC CLI version needs to be upgraded
+Please upgrade to version 1.2.3 or later
+```
+
+**Fix:** Upgrade the CLI:
+
+```bash
+npm install -g oc@1.2.3
+```
+
+### Node.js version mismatch
+
+```bash
+Error: Node.js version needs to be upgraded
+Registry requires Node.js >= 18
+```
+
+**Fix:** Upgrade Node.js to the required version.
+
+### Package size too large
+
+```bash
+Error: Component package exceeds maximum size (10MB)
+Current size: 15MB
+```
+
+**Fix:** Reduce component size by:
+- Removing unused dependencies
+- Optimizing images and assets
+- Excluding unnecessary files
+
+### Compilation errors
+
+```bash
+Error: Template compilation failed
+SyntaxError: Unexpected token
+```
+
+**Fix:** Fix syntax errors in template files.
+
+## Using --skipPackage
+
+The `--skipPackage` option is useful when:
+
+### Component is already packaged
+
+```bash
+# Package once
+oc package my-component/
+
+# Validate multiple times without repackaging
+oc validate my-component/ --skipPackage
+oc validate my-component/ --skipPackage --registries=http://other-registry.com/
+```
+
+### Testing different registries
+
+```bash
+# Package once
+oc package my-component/
+
+# Validate against multiple registries
+oc validate my-component/ --skipPackage --registries=http://registry1.com/
+oc validate my-component/ --skipPackage --registries=http://registry2.com/
+```
+
+### CI/CD pipelines
+
+```bash
+#!/bin/bash
+# Package in one job
+oc package my-component/
+
+# Validate in parallel jobs
+oc validate my-component/ --skipPackage --registries=http://staging.com/
+oc validate my-component/ --skipPackage --registries=http://prod.com/
+```
+
+## Registry Configuration
+
+Validate uses registries from `oc.json`:
+
+```json
+{
+  "registries": [
+    "http://registry.example.com/"
+  ]
+}
+```
+
+Or override with `--registries` flag:
+
+```bash
+oc validate my-component/ --registries=http://custom-registry.com/
+```
+
+## Validation vs Publish
+
+### Validate command
+
+- Does NOT upload component
+- Does NOT modify registry
+- Does NOT require authentication
+- Safe to run multiple times
+- Useful for testing and CI/CD
+
+### Publish command
+
+- Uploads component to registry
+- Modifies registry state
+- Requires authentication
+- Should only be run when ready to publish
+- Includes validation as first step
+
+## CI/CD Integration
+
+### GitHub Actions example
+
+```yaml
+name: Validate Component
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+      - run: npm install -g oc
+      - run: oc validate ./my-component --registries=${{ secrets.REGISTRY_URL }}
+```
+
+### Pre-commit validation
+
+Add to `.git/hooks/pre-commit`:
+
+```bash
+#!/bin/bash
+oc validate ./my-component --skipPackage
+if [ $? -ne 0 ]; then
+  echo "Validation failed. Fix errors before committing."
+  exit 1
+fi
+```
+
+### Pre-publish validation
+
+Validate before publishing:
+
+```bash
+#!/bin/bash
+# Validate first
+oc validate my-component/
+
+# If validation passes, publish
+if [ $? -eq 0 ]; then
+  oc publish my-component/
+else
+  echo "Validation failed. Fix errors before publishing."
+  exit 1
+fi
+```
+
+## Best Practices
+
+1. **Validate before publishing** - Always run validate before publish
+2. **Use in CI/CD** - Automate validation in pull requests
+3. **Test against production** - Validate against production registry before deploying
+4. **Fix errors early** - Validate frequently during development
+5. **Use --skipPackage wisely** - Only when package is already up to date
+
+## Development Workflow
+
+### Typical workflow
+
+```bash
+# 1. Develop locally
+oc dev ./components 3000
+
+# 2. Validate when ready
+oc validate my-component/
+
+# 3. Fix any issues
+# ... make changes ...
+
+# 4. Validate again
+oc validate my-component/
+
+# 5. Publish when validation passes
+oc publish my-component/
+```
+
+### Continuous validation
+
+Validate frequently during development:
+
+```bash
+# Watch for changes and validate
+while true; do
+  oc validate my-component/
+  sleep 30
+done
+```
+
+## Performance Tips
+
+1. **Use --skipPackage** when package is current
+2. **Cache packages** in CI/CD to speed up validation
+3. **Validate specific registries** instead of all registries
+4. **Run validations in parallel** for multiple components
+
+## Related Commands
+
+- [**publish**](/cli/publish) - Publish a component (includes validation)
+- [**package**](/cli/package) - Package a component for validation
+- [**registry**](/cli/registry) - Manage registry configurations
+- [**dev**](/cli/dev) - Test components locally before validation

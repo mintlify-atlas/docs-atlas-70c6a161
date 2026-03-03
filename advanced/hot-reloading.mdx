@@ -1,0 +1,438 @@
+---
+title: 'Hot Reloading'
+description: 'Automatic component reloading during development'
+icon: 'rotate'
+---
+
+## Overview
+
+Hot reloading automatically detects changes to component files during development and recompiles them without requiring a server restart. This significantly speeds up the development workflow by providing instant feedback.
+
+## How It Works
+
+The hot reloading system:
+
+1. **Watches** component directories for file changes
+2. **Detects** modifications to component files (templates, JavaScript, CSS)
+3. **Repackages** the affected component automatically
+4. **Refreshes** the browser preview using LiveReload
+5. **Reports** compilation status and errors
+
+## Configuration
+
+### Enable/Disable Hot Reloading
+
+Hot reloading is enabled by default in development mode:
+
+<ParamField path="hotReloading" type="boolean" default="true">
+  Enable automatic recompilation of components on file changes
+  
+  Automatically set to `true` when `local: true`
+</ParamField>
+
+### CLI Configuration
+
+```bash
+# Enable hot reloading (default)
+oc dev ./components
+
+# Disable hot reloading
+oc dev ./components --hotReloading false
+```
+
+### Programmatic Configuration
+
+```typescript
+import { cli } from 'oc';
+
+cli.dev(
+  {
+    dirPath: './components',
+    port: 3000,
+    hotReloading: true, // Enable hot reloading
+    watch: true,        // Enable file watching
+    logger: myLogger
+  },
+  (err, registry) => {
+    if (err) {
+      console.error('Dev server failed:', err);
+      return;
+    }
+    console.log('Dev server running with hot reloading');
+  }
+);
+```
+
+### Registry Configuration
+
+```typescript
+import { Registry } from 'oc';
+
+const registry = Registry({
+  baseUrl: 'http://localhost:3000/',
+  port: 3000,
+  local: true,
+  path: './components',
+  hotReloading: true, // Enable hot reloading
+  liveReloadPort: 35729 // LiveReload server port
+});
+```
+
+## LiveReload Integration
+
+Hot reloading uses LiveReload to automatically refresh browser previews:
+
+<ParamField path="liveReloadPort" type="number" default="35729">
+  TCP port for the LiveReload server
+  
+  The port is automatically determined if not specified.
+</ParamField>
+
+### LiveReload Setup
+
+The LiveReload server is started automatically when hot reloading is enabled (from `src/cli/facade/dev.ts:180-191`):
+
+```typescript
+if (hotReloading) {
+  const otherPort = await getPort(port + 1);
+  
+  const liveReloadServer = livereload.createServer({
+    port: otherPort
+  });
+  
+  const refresher = () => liveReloadServer.refresh('/');
+  liveReload = { refresher, port: otherPort };
+}
+```
+
+### Browser Integration
+
+The preview page automatically includes LiveReload when hot reloading is enabled:
+
+```html
+<script src="http://localhost:35729/livereload.js?snipver=1"></script>
+```
+
+## File Watching
+
+The watch system monitors component directories for changes (from `src/cli/facade/dev.ts:67-92`):
+
+### Watched Files
+
+The following files trigger recompilation:
+
+- `template.*` (Handlebars, Jade, JSX, etc.)
+- `server.js` (Server-side logic)
+- `package.json` (Component configuration)
+- Static files (CSS, images, etc.)
+- Template-specific files (based on template type)
+
+### Watch Configuration
+
+<ParamField path="watch" type="boolean" default="true">
+  Enable file watching for automatic recompilation
+</ParamField>
+
+```typescript
+cli.dev(
+  {
+    dirPath: './components',
+    watch: true, // Enable watching
+    hotReloading: true
+  },
+  callback
+);
+```
+
+## Repackaging Process
+
+When a file change is detected:
+
+### Single Component Change
+
+If a specific component file changes:
+
+```typescript
+watch(components, componentsDir, (err, changedFile, componentDir) => {
+  if (componentDir) {
+    // Repackage only the affected component
+    packageComponents([componentDir]).then(() => {
+      refreshLiveReload();
+    });
+  }
+});
+```
+
+### Global Change
+
+If a shared file changes:
+
+```typescript
+if (!componentDir) {
+  // Repackage all components
+  packageComponents(components).then(() => {
+    refreshLiveReload();
+  });
+}
+```
+
+### Packaging Logic
+
+```typescript
+const packageComponents = async (componentsDirs: string[]): Promise<void> => {
+  if (!packaging) {
+    packaging = true;
+    logger.warn('Packaging components...', false);
+    
+    for (const dir of componentsDirs) {
+      logger.warn(`Packaging ${dir}`, false);
+      
+      const packageOptions = {
+        componentPath: dir,
+        minify: false,
+        verbose: opts.verbose,
+        production: opts.production
+      };
+      
+      try {
+        await local.package(packageOptions);
+        packaging = false;
+        logger.ok('OK');
+      } catch (error) {
+        logger.err(`Packaging failed: ${error.message}`);
+        logger.warn('Retrying in 10 seconds...');
+        await delay(10000);
+        packaging = false;
+        packageComponents(componentsDirs);
+      }
+    }
+  }
+};
+```
+
+## Error Handling
+
+The hot reloading system handles errors gracefully:
+
+### Compilation Errors
+
+When compilation fails:
+
+```typescript
+try {
+  await local.package(packageOptions);
+  logger.ok('OK');
+} catch (error) {
+  const errorDescription = error instanceof SyntaxError || error.message
+    ? error.message
+    : error;
+  
+  logger.err(`Packaging failed: ${errorDescription}`);
+  logger.warn('Retrying in 10 seconds...');
+  
+  await delay(10000);
+  packageComponents([componentDir]);
+}
+```
+
+The component continues to serve the last successful compilation while displaying errors in the console.
+
+### Watch Errors
+
+```typescript
+watch(components, componentsDir, (err, changedFile, componentDir) => {
+  if (err) {
+    logger.err(`Watch error: ${err}`);
+  }
+});
+```
+
+## Development Workflow
+
+### Typical Workflow
+
+1. Start the dev server:
+   ```bash
+   oc dev ./components
+   ```
+
+2. Open component preview in browser:
+   ```
+   http://localhost:3000/my-component/~1.0.0
+   ```
+
+3. Edit component files (template, server.js, etc.)
+
+4. Save changes
+
+5. Watch console output:
+   ```
+   Changes detected: template.jsx
+   Packaging my-component... OK
+   ```
+
+6. Browser automatically refreshes with updated component
+
+### Console Output
+
+The dev server provides feedback during hot reloading:
+
+```
+[WARN] Changes detected: server.js
+[WARN] Packaging components...
+[WARN] Packaging my-component...
+[OK] OK
+```
+
+When hot reloading is disabled:
+
+```
+[WARN] Changes detected: template.jsx
+[WARN] Hot reloading is disabled. Restart the server to see changes.
+```
+
+## Performance Considerations
+
+<Card title="Incremental Compilation" icon="gauge-high">
+  Only changed components are repackaged, not the entire library
+</Card>
+
+<Card title="Debouncing" icon="clock">
+  Rapid changes trigger a single recompilation to avoid overwhelming the system
+</Card>
+
+<Card title="Background Processing" icon="layer-group">
+  Recompilation happens in the background without blocking the server
+</Card>
+
+<Card title="Error Recovery" icon="shield-check">
+  Failed compilations automatically retry without crashing the server
+</Card>
+
+## Disabling Hot Reloading
+
+You might want to disable hot reloading in certain scenarios:
+
+### Production Environment
+
+```typescript
+const registry = Registry({
+  baseUrl: 'https://components.example.com/',
+  local: false,
+  hotReloading: false
+});
+```
+
+### Manual Compilation Workflow
+
+```bash
+# Disable both watching and hot reloading
+oc dev ./components --watch false --hotReloading false
+```
+
+### Performance Testing
+
+```typescript
+cli.dev(
+  {
+    dirPath: './components',
+    hotReloading: false,
+    watch: false
+  },
+  callback
+);
+```
+
+## Troubleshooting
+
+### LiveReload Not Working
+
+Check that the LiveReload port is not blocked:
+
+```bash
+# Test LiveReload connection
+curl http://localhost:35729/livereload.js
+```
+
+### Changes Not Detected
+
+Verify file watching is enabled:
+
+```typescript
+cli.dev({
+  dirPath: './components',
+  watch: true,
+  hotReloading: true
+}, callback);
+```
+
+### Compilation Errors Persist
+
+Restart the dev server to clear any cached state:
+
+```bash
+# Stop the server (Ctrl+C)
+# Restart
+oc dev ./components
+```
+
+### Port Conflicts
+
+Specify a different LiveReload port:
+
+```typescript
+const registry = Registry({
+  baseUrl: 'http://localhost:3000/',
+  port: 3000,
+  liveReloadPort: 35730 // Use different port
+});
+```
+
+## Best Practices
+
+<Card title="Enable in Development Only" icon="flask">
+  Hot reloading is for development; disable it in production
+</Card>
+
+<Card title="Monitor Console Output" icon="terminal">
+  Watch for compilation errors and warnings during development
+</Card>
+
+<Card title="Use Version Control" icon="code-branch">
+  Commit working code before making changes with hot reloading
+</Card>
+
+<Card title="Test Without Hot Reloading" icon="vial">
+  Periodically test with a fresh build to catch caching issues
+</Card>
+
+## Related Configuration
+
+### Options Sanitizer
+
+Hot reloading configuration is sanitized (from `src/registry/domain/options-sanitiser.ts:73-75`):
+
+```typescript
+if (typeof options.hotReloading !== 'boolean') {
+  options.hotReloading = !!options.local;
+}
+```
+
+This ensures hot reloading is automatically enabled for local registries.
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Development Server" icon="laptop-code" href="/cli/dev">
+    Learn about the development server
+  </Card>
+  <Card title="Component Packaging" icon="box" href="/cli/package">
+    Understand the packaging process
+  </Card>
+  <Card title="Registry Configuration" icon="server" href="/registry/configuration">
+    Configure registry options
+  </Card>
+  <Card title="Troubleshooting" icon="bug" href="/resources/troubleshooting">
+    Debug component issues
+  </Card>
+</CardGroup>

@@ -1,0 +1,526 @@
+---
+title: Parameters
+description: Define and validate component parameters with type safety
+---
+
+## Overview
+
+Parameters allow components to accept input from consumers. OpenComponents provides a robust type system and validation layer for parameters, ensuring components receive the correct data.
+
+## Defining Parameters
+
+Parameters are defined in the `oc.parameters` section of `package.json`:
+
+```json
+{
+  "name": "user-profile",
+  "version": "1.0.0",
+  "oc": {
+    "parameters": {
+      "userId": {
+        "type": "string",
+        "mandatory": true,
+        "example": "user-123"
+      },
+      "showAvatar": {
+        "type": "boolean",
+        "default": true
+      },
+      "maxPosts": {
+        "type": "number",
+        "default": 10
+      }
+    }
+  }
+}
+```
+
+## Parameter Interface
+
+The `OcParameter` interface defines all available options:
+
+```typescript
+interface OcParameter {
+  // Parameter type (required)
+  type: 'string' | 'boolean' | 'number';
+  
+  // Description of the parameter
+  description?: string;
+  
+  // Whether the parameter is required
+  mandatory?: boolean;
+  
+  // Default value when not provided
+  default?: string | boolean | number;
+  
+  // Example value for documentation/testing
+  example?: string | boolean | number;
+  
+  // Restrict to specific allowed values
+  enum?: string[] | number[] | boolean[];
+}
+```
+
+## Parameter Types
+
+### String Parameters
+
+<ParamField path="type" type="string" default="'string'">
+  Accepts text values.
+</ParamField>
+
+```json
+{
+  "title": {
+    "type": "string",
+    "mandatory": true,
+    "example": "Welcome to our site",
+    "description": "The title to display in the header"
+  },
+  "username": {
+    "type": "string",
+    "default": "Guest"
+  }
+}
+```
+
+**Usage:**
+```html
+<!-- Consumer passes parameter -->
+<oc-component name="my-component" title="Hello World"></oc-component>
+```
+
+```javascript
+// In server.js, access via context
+module.exports.data = function(context, callback) {
+  const title = context.params.title; // "Hello World"
+  callback(null, { title });
+};
+```
+
+### Boolean Parameters
+
+<ParamField path="type" type="string" default="'boolean'">
+  Accepts true/false values.
+</ParamField>
+
+```json
+{
+  "showHeader": {
+    "type": "boolean",
+    "default": true,
+    "description": "Whether to display the header section"
+  },
+  "isPublic": {
+    "type": "boolean",
+    "mandatory": true,
+    "example": false
+  }
+}
+```
+
+**Usage:**
+```html
+<oc-component name="article" show-header="true" is-public="false"></oc-component>
+```
+
+### Number Parameters
+
+<ParamField path="type" type="string" default="'number'">
+  Accepts numeric values (integers or floats).
+</ParamField>
+
+```json
+{
+  "maxItems": {
+    "type": "number",
+    "default": 10,
+    "description": "Maximum number of items to display"
+  },
+  "price": {
+    "type": "number",
+    "mandatory": true,
+    "example": 29.99
+  }
+}
+```
+
+**Usage:**
+```html
+<oc-component name="product-list" max-items="20"></oc-component>
+```
+
+## Parameter Constraints
+
+### Mandatory Parameters
+
+<ParamField path="mandatory" type="boolean" default="false">
+  When `true`, the component will fail to render if the parameter is not provided.
+</ParamField>
+
+```json
+{
+  "userId": {
+    "type": "string",
+    "mandatory": true,
+    "example": "user-123"
+  }
+}
+```
+
+<Warning>
+If a mandatory parameter is missing, the registry returns an error response instead of rendering the component.
+</Warning>
+
+### Default Values
+
+<ParamField path="default" type="string | boolean | number">
+  The value used when the parameter is not provided by the consumer.
+</ParamField>
+
+```json
+{
+  "theme": {
+    "type": "string",
+    "default": "light",
+    "description": "Color theme for the component"
+  },
+  "pageSize": {
+    "type": "number",
+    "default": 25
+  }
+}
+```
+
+**In server.js:**
+```javascript
+module.exports.data = function(context, callback) {
+  // If theme not provided, context.params.theme will be "light"
+  const theme = context.params.theme;
+  callback(null, { theme });
+};
+```
+
+### Enum Constraints
+
+<ParamField path="enum" type="array">
+  Restricts the parameter to a specific set of allowed values.
+</ParamField>
+
+```json
+{
+  "size": {
+    "type": "string",
+    "enum": ["small", "medium", "large"],
+    "default": "medium",
+    "description": "Size of the component"
+  },
+  "priority": {
+    "type": "number",
+    "enum": [1, 2, 3, 4, 5],
+    "mandatory": true,
+    "example": 3
+  },
+  "enabled": {
+    "type": "boolean",
+    "enum": [true, false],
+    "default": true
+  }
+}
+```
+
+**Example from source code:**
+```typescript
+// From src/types.ts
+export interface OcParameter {
+  /**
+   * You can optionally restrict the values of the parameter to a specific set of values.
+   * @example
+   * ```ts
+   * {
+   *   type: 'string',
+   *   enum: ['foo', 'bar', 'baz']
+   * }
+   * ```
+   */
+  enum?: string[] | number[] | boolean[];
+}
+```
+
+<Info>
+If a value outside the enum is provided, the component will fail validation.
+</Info>
+
+### Description and Examples
+
+<ParamField path="description" type="string">
+  Human-readable description of what the parameter does. Used in documentation and preview interfaces.
+</ParamField>
+
+<ParamField path="example" type="string | boolean | number">
+  Example value shown in the component preview and documentation.
+</ParamField>
+
+```json
+{
+  "apiKey": {
+    "type": "string",
+    "mandatory": true,
+    "description": "API key for authentication with the external service",
+    "example": "sk_test_abc123xyz"
+  }
+}
+```
+
+## Real-World Example
+
+From `test/fixtures/components/welcome-with-optional-parameters`:
+
+<CodeGroup>
+```json package.json
+{
+  "name": "welcome-with-optional-parameters",
+  "version": "1.0.0",
+  "oc": {
+    "parameters": {
+      "firstName": {
+        "type": "string",
+        "mandatory": true,
+        "example": "John"
+      },
+      "lastName": {
+        "type": "string",
+        "mandatory": false,
+        "example": "Smith"
+      },
+      "nick": {
+        "type": "string",
+        "mandatory": false,
+        "example": "Smith",
+        "default": "Johnny"
+      }
+    }
+  }
+}
+```
+
+```javascript server.js
+'use strict';
+
+module.exports.data = function (context, callback) {
+  callback(null, {
+    firstName: context.params.firstName,
+    lastName: context.params.lastName,
+    nick: context.params.nick
+  });
+};
+```
+
+```jade template.jade
+span hi #{firstName} #{lastName} (#{nick})
+```
+</CodeGroup>
+
+## Accessing Parameters
+
+### In Data Provider (server.js)
+
+Parameters are available via `context.params`:
+
+```javascript
+'use strict';
+
+module.exports.data = function(context, callback) {
+  // Access individual parameters
+  const userId = context.params.userId;
+  const showAvatar = context.params.showAvatar; // boolean
+  const maxPosts = context.params.maxPosts;     // number
+  
+  // Use parameters in logic
+  if (showAvatar) {
+    // Fetch avatar data
+  }
+  
+  callback(null, {
+    userId,
+    posts: fetchPosts(userId, maxPosts)
+  });
+};
+```
+
+### In Templates
+
+Parameters passed to the data provider are available in templates through the returned data object:
+
+**Handlebars:**
+```handlebars
+<div class="user-profile">
+  <h1>User: {{userId}}</h1>
+  {{#if showAvatar}}
+    <img src="/avatars/{{userId}}.jpg" />
+  {{/if}}
+  <p>Showing {{maxPosts}} posts</p>
+</div>
+```
+
+**Jade:**
+```jade
+.user-profile
+  h1 User: #{userId}
+  if showAvatar
+    img(src='/avatars/' + userId + '.jpg')
+  p Showing #{maxPosts} posts
+```
+
+## Parameter Validation
+
+OpenComponents automatically validates parameters before passing them to your component:
+
+<Steps>
+  <Step title="Type Checking">
+    Ensures the parameter matches the declared type (`string`, `boolean`, or `number`).
+  </Step>
+  
+  <Step title="Mandatory Check">
+    Verifies all mandatory parameters are provided.
+  </Step>
+  
+  <Step title="Enum Validation">
+    If an enum is defined, ensures the value is in the allowed list.
+  </Step>
+  
+  <Step title="Default Application">
+    Applies default values for optional parameters not provided.
+  </Step>
+</Steps>
+
+### Validation Errors
+
+If validation fails, the registry returns an error:
+
+```json
+{
+  "error": "Missing mandatory parameter: userId"
+}
+```
+
+or
+
+```json
+{
+  "error": "Parameter 'size' must be one of: small, medium, large"
+}
+```
+
+## Advanced Patterns
+
+### Optional with Fallback Logic
+
+```javascript
+// In server.js
+module.exports.data = function(context, callback) {
+  // Provide runtime fallback for optional parameters
+  const title = context.params.title || 'Default Title';
+  const items = context.params.maxItems || 10;
+  
+  callback(null, { title, items });
+};
+```
+
+<Tip>
+Use `default` in parameter definition for simple cases, and runtime logic in server.js for complex fallback behavior.
+</Tip>
+
+### Dynamic Enums
+
+While enums in `package.json` are static, you can add runtime validation:
+
+```javascript
+module.exports.data = function(context, callback) {
+  const validCategories = ['tech', 'sports', 'news', 'entertainment'];
+  const category = context.params.category;
+  
+  if (!validCategories.includes(category)) {
+    return callback(new Error(`Invalid category: ${category}`));
+  }
+  
+  callback(null, { category });
+};
+```
+
+### Complex Objects via JSON Strings
+
+For complex data, use string parameters with JSON:
+
+```json
+{
+  "filters": {
+    "type": "string",
+    "description": "JSON string of filter criteria",
+    "example": "{\"category\": \"tech\", \"minPrice\": 10}"
+  }
+}
+```
+
+```javascript
+module.exports.data = function(context, callback) {
+  let filters = {};
+  
+  try {
+    filters = JSON.parse(context.params.filters || '{}');
+  } catch (e) {
+    return callback(new Error('Invalid filters JSON'));
+  }
+  
+  callback(null, { filters });
+};
+```
+
+## Parameter Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Keep It Simple" icon="lightbulb">
+    Avoid excessive parameters. If you need many, consider if the component is doing too much.
+  </Card>
+  
+  <Card title="Use Sensible Defaults" icon="sliders">
+    Provide defaults for optional parameters to make components easier to use.
+  </Card>
+  
+  <Card title="Document Everything" icon="book">
+    Always include `description` and `example` for better developer experience.
+  </Card>
+  
+  <Card title="Validate Early" icon="shield-check">
+    Use enums and mandatory flags to catch issues before runtime.
+  </Card>
+</CardGroup>
+
+## Testing Parameters
+
+The component preview interface automatically generates a form for testing parameters:
+
+1. Navigate to `http://localhost:3000/<component-name>`
+2. Use the parameter form to input test values
+3. The preview updates in real-time
+4. Example values from parameter definitions are pre-filled
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Data Providers" icon="database" href="/components/data-providers">
+    Use parameters in server-side data fetching logic
+  </Card>
+  
+  <Card title="Templates" icon="file-code" href="/components/templates">
+    Render parameter values in your templates
+  </Card>
+  
+  <Card title="Component Structure" icon="sitemap" href="/components/component-structure">
+    See how parameters fit into the full component
+  </Card>
+  
+  <Card title="Testing" icon="flask" href="/components/testing">
+    Learn how to test components with different parameters
+  </Card>
+</CardGroup>

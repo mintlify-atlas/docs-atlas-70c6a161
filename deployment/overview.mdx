@@ -1,0 +1,249 @@
+---
+title: Deployment Overview
+description: Learn how to deploy OpenComponents registry to production environments
+---
+
+OpenComponents registry can be deployed to production environments using various hosting platforms and storage backends. This guide covers the essential considerations and options for deploying your registry.
+
+## Deployment Options
+
+OpenComponents supports multiple deployment strategies:
+
+- **Cloud Platforms**: Deploy to AWS, Azure, Google Cloud, or other cloud providers
+- **Containerized**: Use Docker for containerized deployments
+- **Traditional Servers**: Deploy to VPS or dedicated servers
+- **Serverless**: Deploy using serverless architectures (with limitations)
+
+## Storage Backends
+
+The registry requires a storage adapter to persist components. OpenComponents supports:
+
+<CardGroup cols={2}>
+  <Card title="S3 Storage" icon="aws" href="/deployment/aws">
+    Use AWS S3 or S3-compatible storage (recommended for production)
+  </Card>
+  <Card title="Custom Adapters" icon="code">
+    Implement custom storage adapters for other backends
+  </Card>
+</CardGroup>
+
+## Key Deployment Considerations
+
+### 1. Base URL Configuration
+
+The `baseUrl` is critical for component delivery. It must be the public URL where your registry is accessible:
+
+```typescript
+const registry = oc.Registry({
+  baseUrl: 'https://components.mycompany.com/',
+  prefix: '/',
+  // ... other options
+});
+```
+
+<Note>
+The `baseUrl` must include the configured `prefix` at the end. The framework will automatically append it if missing.
+</Note>
+
+### 2. Storage Configuration
+
+Configure persistent storage for component packages:
+
+```typescript
+const registry = oc.Registry({
+  baseUrl: 'https://components.mycompany.com/',
+  s3: {
+    bucket: 'my-components-bucket',
+    region: 'us-east-1',
+    componentsDir: 'components'
+  }
+});
+```
+
+See the [AWS deployment guide](/deployment/aws) for detailed S3 configuration.
+
+### 3. Environment Variables
+
+Pass environment variables to components at runtime:
+
+```typescript
+const registry = oc.Registry({
+  baseUrl: 'https://components.mycompany.com/',
+  env: {
+    API_URL: process.env.API_URL,
+    NODE_ENV: 'production'
+  }
+});
+```
+
+Components can access these via `context.env`:
+
+```javascript
+// In component's server.js
+export const getData = (context, callback) => {
+  const apiUrl = context.env.API_URL;
+  // Use environment variable
+};
+```
+
+### 4. Performance & Scaling
+
+#### Timeouts
+
+Configure appropriate timeouts for your workload:
+
+```typescript
+const registry = oc.Registry({
+  // HTTP request timeout (milliseconds)
+  timeout: 120000, // Default: 2 minutes
+  
+  // Component execution timeout (seconds)
+  executionTimeout: 5, // Default: no timeout
+  
+  // Keep-alive timeout (milliseconds)
+  keepAliveTimeout: 5000 // Default: 5 seconds
+});
+```
+
+#### Caching
+
+Configure polling and refresh intervals:
+
+```typescript
+const registry = oc.Registry({
+  // Seconds between storage polls for changes
+  pollingInterval: 5, // Default: 5 seconds
+  
+  // Seconds between component list cache refreshes
+  refreshInterval: 60
+});
+```
+
+<Warning>
+Lower polling intervals improve responsiveness but increase storage API calls. Balance based on your update frequency and costs.
+</Warning>
+
+### 5. Security
+
+#### Publishing Authentication
+
+Protect component publishing with authentication:
+
+```typescript
+const registry = oc.Registry({
+  publishAuth: {
+    type: 'basic',
+    username: 'admin',
+    password: process.env.PUBLISH_PASSWORD
+  }
+});
+```
+
+Multiple users:
+
+```typescript
+const registry = oc.Registry({
+  publishAuth: {
+    type: 'basic',
+    logins: [
+      { username: 'admin', password: process.env.ADMIN_PASSWORD },
+      { username: 'dev', password: process.env.DEV_PASSWORD }
+    ]
+  }
+});
+```
+
+#### Custom Validation
+
+Implement custom publishing validation:
+
+```typescript
+const registry = oc.Registry({
+  publishValidation: (packageJson, context) => {
+    // Custom validation logic
+    if (!packageJson.name.startsWith('mycompany-')) {
+      return {
+        isValid: false,
+        error: 'Component name must start with "mycompany-"'
+      };
+    }
+    return { isValid: true };
+  }
+});
+```
+
+### 6. Discovery & API
+
+Control registry discovery features:
+
+```typescript
+const registry = oc.Registry({
+  discovery: {
+    ui: true,              // Enable HTML discovery page
+    api: true,             // Enable API endpoints
+    experimental: true,    // Show experimental components
+    validate: false,       // Enable API validation
+    robots: true          // Allow search engine indexing
+  }
+});
+```
+
+For production registries with public components, you might want:
+
+```typescript
+const registry = oc.Registry({
+  discovery: {
+    ui: true,
+    api: true,
+    experimental: false, // Hide experimental components
+    validate: true,      // Validate API requests
+    robots: true
+  }
+});
+```
+
+### 7. Logging & Monitoring
+
+Enable verbose logging for debugging:
+
+```typescript
+const registry = oc.Registry({
+  verbosity: 1 // 0 = silent, 1 = verbose
+});
+```
+
+The registry emits events for monitoring:
+
+```typescript
+const registry = oc.Registry({ /* ... */ });
+
+registry.on('start', () => {
+  console.log('Registry started');
+});
+
+registry.on('error', (error) => {
+  console.error('Registry error:', error);
+  // Send to monitoring service
+});
+
+registry.start((err, data) => {
+  if (err) {
+    console.error('Failed to start registry:', err);
+    process.exit(1);
+  }
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Production Checklist" icon="list-check" href="/deployment/production">
+    Complete pre-deployment checklist and best practices
+  </Card>
+  <Card title="AWS Deployment" icon="aws" href="/deployment/aws">
+    Deploy to AWS with S3 storage
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/deployment/docker">
+    Containerize your registry with Docker
+  </Card>
+</CardGroup>

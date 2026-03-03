@@ -1,0 +1,346 @@
+---
+title: 'Custom Templates'
+description: 'Create and integrate custom template engines'
+icon: 'code'
+---
+
+## Overview
+
+OpenComponents supports multiple template engines through a pluggable template system. While it includes built-in support for Handlebars, Jade, and ES6 templates, you can create and register custom template engines to support any templating language.
+
+## Template Interface
+
+A template engine must implement the `Template` interface defined in `src/types.ts:423-432`:
+
+<ParamField path="getInfo" type="function" required>
+  Returns metadata about the template engine
+  
+  ```typescript
+  () => TemplateInfo
+  ```
+  
+  Returns:
+  - `type`: Template type identifier (e.g., "oc-template-react")
+  - `version`: Template version
+  - `externals`: Array of external dependencies with URLs
+</ParamField>
+
+<ParamField path="getCompiledTemplate" type="function" required>
+  Compiles a template string into an executable function
+  
+  ```typescript
+  (
+    templateString: string,
+    key: string,
+    context?: Record<string, unknown>
+  ) => (model: unknown) => string
+  ```
+</ParamField>
+
+<ParamField path="render" type="function" required>
+  Renders a component with the given options
+  
+  ```typescript
+  (
+    options: any,
+    cb: (err: Error | null, data: string) => void
+  ) => void
+  ```
+</ParamField>
+
+<ParamField path="compile" type="function">
+  Optional compile function for build-time compilation
+  
+  ```typescript
+  (
+    options: CompilerOptions,
+    cb: (err: Error | null) => void
+  ) => void
+  ```
+</ParamField>
+
+## Template Info Structure
+
+The `getInfo()` method must return a `TemplateInfo` object:
+
+<ParamField path="type" type="string" required>
+  Unique identifier for the template type (e.g., "oc-template-react")
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Semantic version of the template engine
+</ParamField>
+
+<ParamField path="externals" type="array" required>
+  External dependencies required by the template
+  
+  Each external should have:
+  - `name`: Package name
+  - `global`: Global variable name(s)
+  - `url`: Production CDN URL
+  - `devUrl`: Optional development URL
+</ParamField>
+
+## Built-in Templates
+
+OpenComponents includes three built-in templates (from `src/registry/domain/register-templates.ts:1-44`):
+
+```typescript
+import * as es6Template from 'oc-template-es6';
+import handlebarsTemplate from 'oc-template-handlebars';
+import jadeTemplate from 'oc-template-jade';
+
+const coreTemplates = [
+  es6Template,
+  jadeTemplate,
+  handlebarsTemplate
+];
+```
+
+## Creating a Custom Template
+
+Here's a complete example of a custom template engine:
+
+```typescript
+import type { Template, TemplateInfo } from 'oc';
+
+class CustomTemplate implements Template {
+  getInfo(): TemplateInfo {
+    return {
+      type: 'oc-template-custom',
+      version: '1.0.0',
+      externals: [
+        {
+          name: 'custom-renderer',
+          global: 'CustomRenderer',
+          url: 'https://cdn.example.com/custom-renderer@1.0.0/dist/custom.min.js',
+          devUrl: 'https://cdn.example.com/custom-renderer@1.0.0/dist/custom.js'
+        }
+      ]
+    };
+  }
+
+  getCompiledTemplate(
+    templateString: string,
+    key: string,
+    context?: Record<string, unknown>
+  ) {
+    // Compile the template string into a function
+    return (model: unknown) => {
+      // Your rendering logic here
+      return `<div>${JSON.stringify(model)}</div>`;
+    };
+  }
+
+  render(options: any, cb: (err: Error | null, data: string) => void) {
+    try {
+      const { model, templateString } = options;
+      const compiled = this.getCompiledTemplate(templateString, options.key);
+      const html = compiled(model);
+      cb(null, html);
+    } catch (error) {
+      cb(error as Error, '');
+    }
+  }
+
+  compile(options: any, cb: (err: Error | null) => void) {
+    // Build-time compilation logic
+    try {
+      // Perform compilation tasks
+      cb(null);
+    } catch (error) {
+      cb(error as Error);
+    }
+  }
+}
+
+export default new CustomTemplate();
+```
+
+## Registering Custom Templates
+
+Register your custom template with the registry:
+
+```typescript
+import { Registry } from 'oc';
+import customTemplate from './templates/custom-template';
+
+const registry = Registry({
+  baseUrl: 'https://components.example.com/',
+  port: 3000,
+  templates: [customTemplate]
+});
+
+registry.start((err) => {
+  if (err) {
+    console.error('Failed to start:', err);
+    return;
+  }
+  console.log('Registry started with custom template');
+});
+```
+
+## Using Custom Templates in Components
+
+Specify the template type in your component's `package.json`:
+
+```json
+{
+  "name": "my-component",
+  "version": "1.0.0",
+  "oc": {
+    "files": {
+      "template": {
+        "src": "template.html",
+        "type": "oc-template-custom"
+      }
+    }
+  }
+}
+```
+
+## React Template Example
+
+Here's a more complete example for a React-based template:
+
+```typescript
+import React from 'react';
+import { renderToString } from 'react-dom/server';
+import type { Template, TemplateInfo } from 'oc';
+
+class ReactTemplate implements Template {
+  getInfo(): TemplateInfo {
+    return {
+      type: 'oc-template-react',
+      version: '1.0.0',
+      externals: [
+        {
+          name: 'react',
+          global: 'React',
+          url: 'https://unpkg.com/react@18/umd/react.production.min.js',
+          devUrl: 'https://unpkg.com/react@18/umd/react.development.js'
+        },
+        {
+          name: 'react-dom',
+          global: 'ReactDOM',
+          url: 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
+          devUrl: 'https://unpkg.com/react-dom@18/umd/react-dom.development.js'
+        }
+      ]
+    };
+  }
+
+  getCompiledTemplate(
+    templateString: string,
+    key: string,
+    context?: Record<string, unknown>
+  ) {
+    // Assume templateString is compiled React component
+    const Component = eval(templateString);
+    
+    return (model: unknown) => {
+      return renderToString(<Component {...model} />);
+    };
+  }
+
+  render(options: any, cb: (err: Error | null, data: string) => void) {
+    try {
+      const { model, templateString, key } = options;
+      const compiled = this.getCompiledTemplate(templateString, key);
+      const html = compiled(model);
+      cb(null, html);
+    } catch (error) {
+      cb(error as Error, '');
+    }
+  }
+
+  compile(options: any, cb: (err: Error | null) => void) {
+    const { componentPath, publishPath } = options;
+    
+    // Use webpack or your bundler here
+    // Transpile JSX, bundle dependencies, etc.
+    
+    cb(null);
+  }
+}
+
+export default new ReactTemplate();
+```
+
+## Template Registration Process
+
+The template registration process (from `src/registry/domain/register-templates.ts:6-43`):
+
+1. Core templates are loaded automatically
+2. Custom templates from the `templates` config option are added
+3. Templates are indexed by their `type` identifier
+4. Template info is extracted and made available to the registry
+5. External URLs are adjusted based on development/production mode
+
+## External Dependencies
+
+Templates can specify external dependencies that will be loaded on the client side:
+
+```typescript
+externals: [
+  {
+    name: 'lodash',
+    global: '_',
+    url: 'https://cdn.jsdelivr.net/npm/lodash@4/lodash.min.js'
+  },
+  {
+    name: 'moment',
+    global: 'moment',
+    url: 'https://cdn.jsdelivr.net/npm/moment@2/moment.min.js',
+    devUrl: 'https://cdn.jsdelivr.net/npm/moment@2/moment.js'
+  }
+]
+```
+
+## Best Practices
+
+<Card title="Version your templates" icon="tag">
+  Use semantic versioning for your template engines and update the version in `getInfo()`
+</Card>
+
+<Card title="Handle errors gracefully" icon="shield-exclamation">
+  Always use callbacks for error handling in async operations
+</Card>
+
+<Card title="Optimize external dependencies" icon="bolt">
+  Use CDN URLs for externals and provide both minified and development versions
+</Card>
+
+<Card title="Test thoroughly" icon="vial">
+  Test your template with various component scenarios before deployment
+</Card>
+
+## Development vs Production
+
+Templates can specify different URLs for development and production:
+
+```typescript
+externals: [
+  {
+    name: 'my-lib',
+    global: 'MyLib',
+    // Minified version for production
+    url: 'https://cdn.example.com/my-lib.min.js',
+    // Unminified with source maps for development
+    devUrl: 'https://cdn.example.com/my-lib.js'
+  }
+]
+```
+
+The registry automatically selects the appropriate URL based on the environment.
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Component Structure" icon="folder-tree" href="/components/structure">
+    Learn about component file structure
+  </Card>
+  <Card title="Registry Configuration" icon="server" href="/registry/configuration">
+    Configure template options in the registry
+  </Card>
+</CardGroup>

@@ -1,0 +1,306 @@
+---
+title: Contributing
+description: Guidelines for contributing to OpenComponents
+---
+
+Contributions are more than welcome! This guide will help you get started with contributing to OpenComponents.
+
+## Getting Started
+
+### Finding Issues
+
+If you find a bug or have a feature request:
+
+1. **Search existing issues:** Check the [issues page](https://github.com/opencomponents/oc/issues) first
+2. **Open a new issue:** If your issue doesn't exist, create a detailed bug report or feature request
+3. **Join the conversation:** Comment on existing issues or join us on [Gitter](https://gitter.im/opentable/oc)
+
+### Before You Start
+
+Before sending a Pull Request:
+
+1. **Join the discussion:** Comment on the relevant issue to avoid duplicate work
+2. **Get consensus:** Make sure your approach is aligned with maintainers
+3. **Check for existing PRs:** Someone might already be working on it
+
+## Pull Request Process
+
+### 1. Fork and Branch
+
+```bash
+# Fork the repository on GitHub, then:
+git clone https://github.com/YOUR_USERNAME/oc.git
+cd oc
+
+# If you have write access, create a branch on upstream:
+git checkout -b feature/my-feature
+
+# Otherwise, work on your fork:
+git remote add upstream https://github.com/opencomponents/oc.git
+git checkout -b feature/my-feature
+```
+
+### 2. Make Your Changes
+
+```bash
+# Install dependencies
+npm install
+
+# Make your changes
+# Follow the coding standards below
+
+# Run tests
+npm test
+
+# Run linting
+npm run lint
+```
+
+### 3. Test Your Changes
+
+Ensure all tests pass locally:
+
+```bash
+# Run the full test suite
+npm test
+
+# Run specific tests
+npm test -- --grep "your test pattern"
+
+# Check code formatting
+npm run lint
+```
+
+### 4. Commit Your Changes
+
+```bash
+# Stage your changes
+git add .
+
+# Commit with a clear message
+git commit -m "feat: add new feature"
+
+# Or for bug fixes
+git commit -m "fix: resolve issue with component loading"
+```
+
+### 5. Submit Pull Request
+
+1. Push your branch to GitHub
+2. Create a Pull Request against the `master` branch
+3. Fill out the PR template completely
+4. Wait for CI tests to pass
+5. Respond to review comments
+
+## Coding Rules
+
+### Git Workflow
+
+- **Never play with git history:** No force pushes or rewriting history on shared branches
+- **Don't auto-merge:** Wait for review and approval
+- **Merge only when green:** All tests must pass before merging
+- **Keep commits clean:** Use meaningful commit messages
+
+### Code Style
+
+OpenComponents uses TypeScript and follows these conventions:
+
+#### File Organization
+
+```
+src/
+├── cli/              # CLI commands and logic
+│   ├── domain/       # Business logic
+│   └── facade/       # Public APIs
+├── registry/         # Registry server
+│   ├── routes/       # Express routes
+│   ├── domain/       # Business logic
+│   ├── views/        # JSX components
+│   └── middleware/   # Express middleware
+├── components/       # Component implementations
+├── utils/           # Shared utilities
+└── types.ts         # Centralized types
+```
+
+#### Naming Conventions
+
+```typescript
+// Files and folders: kebab-case
+components-cache.ts
+package-json-validator.ts
+
+// Variables and functions: camelCase
+const componentName = 'my-component';
+function getComponent() { }
+
+// Interfaces and types: PascalCase
+interface Component { }
+type RegistryOptions = { };
+
+// Constants: UPPER_CASE
+const DEFAULT_PORT = 3000;
+```
+
+#### TypeScript Standards
+
+```typescript
+// Use strict type checking
+// All code must pass TypeScript strict mode
+
+// Use interface for object types
+interface ComponentOptions {
+  name: string;
+  version?: string;
+  parameters?: Record<string, any>;
+}
+
+// Use type imports
+import type { Registry } from './types';
+
+// Use async/await over Promises
+async function fetchData(): Promise<Data> {
+  const response = await fetch(url);
+  return response.json();
+}
+
+// Use destructuring
+function processComponent({ name, version }: ComponentOptions) {
+  // ...
+}
+```
+
+#### Import Organization
+
+```typescript
+// 1. Node.js built-ins (with node: prefix)
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+
+// 2. External libraries
+import express from 'express';
+import axios from 'axios';
+
+// 3. Internal modules
+import { validateComponent } from './validators';
+import type { Component } from '../types';
+```
+
+### Testing
+
+Write tests for new features:
+
+```typescript
+import { expect } from 'chai';
+import { describe, it } from 'mocha';
+
+describe('Component validation', () => {
+  it('should validate component name', () => {
+    const result = validateName('my-component');
+    expect(result.isValid).to.be.true;
+  });
+
+  it('should reject invalid names', () => {
+    const result = validateName('Invalid Name');
+    expect(result.isValid).to.be.false;
+  });
+});
+```
+
+## Publishing (Maintainers Only)
+
+Only authorized maintainers can publish new versions to npm.
+
+### Prerequisites
+
+1. Ensure `master` branch is green (all tests passing)
+2. Pull latest changes and tags:
+
+```bash
+git checkout master
+git pull --tags
+```
+
+### Version Bumping
+
+While on version 0.X.X (pre-1.0):
+
+```bash
+# For bug fixes and new features
+npm run publish-patch
+# 0.50.44 → 0.50.45
+
+# For breaking changes
+npm run publish-minor
+# 0.50.44 → 0.51.0
+
+# For 1.0.0 release (not yet)
+# npm run publish-major
+# Milestones for 1.0.0 still being defined
+```
+
+The publish script will:
+1. Run all tests
+2. Update version in `package.json`
+3. Create a git tag
+4. Publish to npm
+5. Push changes and tags to GitHub
+
+## Code of Conduct
+
+This Code of Conduct is adapted from [Rust's wonderful CoC](http://www.rust-lang.org/conduct.html).
+
+### Our Pledge
+
+We are committed to providing a friendly, safe and welcoming environment for all, regardless of:
+- Gender or sexual orientation
+- Disability
+- Ethnicity
+- Religion
+- Similar personal characteristics
+
+### Our Standards
+
+**Do:**
+- Be kind and courteous
+- Respect differing viewpoints and experiences
+- Accept constructive criticism gracefully
+- Focus on what is best for the community
+- Show empathy towards others
+
+**Don't:**
+- Use overtly sexual nicknames or language
+- Make insulting, derogatory, or harassing comments
+- Engage in trolling, flaming, or baiting behavior
+- Share others' private information without permission
+- Use personal pronouns in code comments (e.g., "When the developer")
+
+### Enforcement
+
+- **Unstructured critique:** Keep it to a minimum. If you have ideas, make a fork and experiment
+- **Harassment:** We will exclude you from interaction if you insult, demean or harass anyone
+- **Private harassment:** Contact us at oc@opentable.com with evidence (log, photo, email)
+- **Spam and trolling:** Not welcome
+
+We interpret "harassment" as defined in the [Citizen Code of Conduct](http://citizencodeofconduct.org/). We don't tolerate behavior that excludes people in socially marginalized groups.
+
+### Reporting
+
+If you experience or witness harassment:
+
+1. **Collect evidence:** Screenshots, logs, or other documentation
+2. **Contact maintainers:** Email oc@opentable.com
+3. **We've got your back:** Whether you're a regular contributor or newcomer, we care about making this a safe space
+
+## Resources
+
+- **GitHub Repository:** [github.com/opencomponents/oc](https://github.com/opencomponents/oc)
+- **Issue Tracker:** [github.com/opencomponents/oc/issues](https://github.com/opencomponents/oc/issues)
+- **Gitter Chat:** [gitter.im/opentable/oc](https://gitter.im/opentable/oc)
+- **Documentation:** [opencomponents.github.io/docs](https://opencomponents.github.io/docs)
+- **Awesome OC:** [github.com/matteofigus/awesome-oc](https://github.com/matteofigus/awesome-oc)
+
+## Related Pages
+
+- [Troubleshooting](/resources/troubleshooting) - Common issues and solutions
+- [Migration Guide](/resources/migration-guide) - Upgrading between versions
+- [Changelog](/resources/changelog) - Version history

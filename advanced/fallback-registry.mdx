@@ -1,0 +1,396 @@
+---
+title: 'Fallback Registry'
+description: 'Configure component fallback and high availability'
+icon: 'arrows-spin'
+---
+
+## Overview
+
+The fallback registry feature provides high availability by allowing a primary registry to delegate component requests to a secondary registry when components are not found locally. This enables gradual migrations, multi-region deployments, and development workflows.
+
+## How It Works
+
+When a component is requested:
+
+1. The primary registry attempts to serve the component
+2. If the component is not found (404), the registry forwards the request to the fallback registry
+3. The fallback registry's response is returned to the client
+4. The request is transparent to the client
+
+## Configuration
+
+Configure the fallback registry using the `fallbackRegistryUrl` option:
+
+<ParamField path="fallbackRegistryUrl" type="string">
+  URL of the secondary registry to query when components are not found
+  
+  A trailing slash is automatically appended if not provided.
+</ParamField>
+
+<ParamField path="fallbackClient" type="boolean" default="false">
+  Enable the fallback client for client-side rendering
+</ParamField>
+
+### Registry Configuration
+
+```typescript
+import { Registry } from 'oc';
+
+const registry = Registry({
+  baseUrl: 'https://my-components.example.com/',
+  port: 3000,
+  fallbackRegistryUrl: 'https://main-components.example.com/',
+  fallbackClient: false,
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  }
+});
+
+registry.start((err) => {
+  if (err) {
+    console.error('Failed to start:', err);
+    return;
+  }
+  console.log('Registry with fallback started');
+});
+```
+
+### Development Configuration
+
+For local development, configure fallback in `oc.json`:
+
+```json
+{
+  "development": {
+    "fallback": {
+      "url": "https://components.example.com/",
+      "client": true
+    }
+  }
+}
+```
+
+Then start the dev server:
+
+```bash
+oc dev . --fallbackRegistryUrl https://components.example.com/
+```
+
+## Use Cases
+
+### Gradual Migration
+
+Migrate components from one registry to another gradually:
+
+```typescript
+// New registry with old registry as fallback
+const newRegistry = Registry({
+  baseUrl: 'https://new-registry.example.com/',
+  fallbackRegistryUrl: 'https://old-registry.example.com/',
+  storage: { /* new storage */ }
+});
+```
+
+Components are served from the new registry when available, otherwise from the old registry. Migrate components one at a time by publishing them to the new registry.
+
+### Multi-Region Deployment
+
+Provide regional registries with a central fallback:
+
+```typescript
+// EU Registry
+const euRegistry = Registry({
+  baseUrl: 'https://eu.components.example.com/',
+  fallbackRegistryUrl: 'https://global.components.example.com/',
+  storage: { /* EU storage */ }
+});
+
+// US Registry
+const usRegistry = Registry({
+  baseUrl: 'https://us.components.example.com/',
+  fallbackRegistryUrl: 'https://global.components.example.com/',
+  storage: { /* US storage */ }
+});
+```
+
+### Development with Production Fallback
+
+Develop new components locally while using production components as fallback:
+
+```bash
+# Start local dev server with production fallback
+oc dev ./components \
+  --port 3030 \
+  --fallbackRegistryUrl https://components.example.com/
+```
+
+Local components take precedence, while production components are available for dependencies.
+
+### Component Preview Environments
+
+Create preview environments for testing:
+
+```typescript
+const previewRegistry = Registry({
+  baseUrl: 'https://preview-123.components.example.com/',
+  fallbackRegistryUrl: 'https://staging.components.example.com/',
+  components: ['new-feature-component'], // Only serve specific components
+  storage: { /* preview storage */ }
+});
+```
+
+## Fallback Implementation
+
+The fallback mechanism is implemented in `src/registry/routes/helpers/get-component-fallback.ts:1-162`:
+
+### Component Retrieval
+
+```typescript
+export function getComponent(
+  fallbackRegistryUrl: string,
+  headers: IncomingHttpHeaders,
+  component: { 
+    name: string; 
+    version: string; 
+    parameters: IncomingHttpHeaders 
+  },
+  callback: (result: GetComponentResult) => void
+): void
+```
+
+### Preview Fallback
+
+```typescript
+export function getComponentPreview(
+  conf: Config,
+  req: Request,
+  res: Response,
+  registryError: string | null,
+  callback: ComponentCallback
+): void
+```
+
+### Component Info Fallback
+
+```typescript
+export function getComponentInfo(
+  conf: Config,
+  req: Request,
+  res: Response,
+  registryError: string | null,
+  callback: ComponentCallback
+): void
+```
+
+## Error Handling
+
+The fallback system handles various error scenarios:
+
+### Component Not Found
+
+When a component is not found in either registry:
+
+```typescript
+{
+  status: 404,
+  response: {
+    code: 'NOT_FOUND',
+    error: 'Component not found'
+  }
+}
+```
+
+### Fallback Registry Unavailable
+
+When the fallback registry is unreachable:
+
+```typescript
+{
+  registryError: 'Component not found in primary registry',
+  fallbackError: 'Connection timeout'
+}
+```
+
+### Invalid Response
+
+When the fallback registry returns an invalid response:
+
+```typescript
+{
+  registryError: 'Component not found',
+  fallbackError: 'Could not parse fallback response: {...}'
+}
+```
+
+## Headers and Caching
+
+The fallback system properly handles HTTP headers:
+
+### Forwarded Headers
+
+Headers are forwarded to the fallback registry:
+
+```typescript
+request(fallbackUrl, {
+  headers: {
+    ...req.headers,
+    host: new URL(fallbackRegistryUrl).host,
+    accept: 'application/json'
+  }
+});
+```
+
+### Skipped Headers on Weak Versions
+
+Configure headers to omit when serving fallback components:
+
+```typescript
+const registry = Registry({
+  baseUrl: 'https://components.example.com/',
+  fallbackRegistryUrl: 'https://fallback.example.com/',
+  customHeadersToSkipOnWeakVersion: [
+    'x-custom-cache',
+    'x-version-tag'
+  ]
+});
+```
+
+### 304 Not Modified
+
+The fallback system respects cache validation:
+
+```typescript
+if (response.statusCode === 304) {
+  return res.status(304).send('');
+}
+```
+
+## Best Practices
+
+<Card title="Use Stable Fallback URLs" icon="anchor">
+  The fallback registry should be highly available and stable
+</Card>
+
+<Card title="Monitor Fallback Usage" icon="chart-line">
+  Track how often fallback is used to identify missing components
+</Card>
+
+<Card title="Version Compatibility" icon="code-compare">
+  Ensure fallback registry supports the same component versions
+</Card>
+
+<Card title="Network Latency" icon="network-wired">
+  Consider latency when using remote fallback registries
+</Card>
+
+## Monitoring Fallback Usage
+
+Track fallback usage with registry events:
+
+```typescript
+let fallbackCount = 0;
+
+registry.on('request', (data) => {
+  if (data.isFallback) {
+    fallbackCount++;
+    console.log(`Fallback used for: ${data.componentName}@${data.version}`);
+  }
+});
+
+// Report metrics
+setInterval(() => {
+  console.log(`Fallback usage: ${fallbackCount} requests`);
+  fallbackCount = 0;
+}, 60000);
+```
+
+## Security Considerations
+
+### Authentication
+
+The fallback system does not automatically forward authentication headers for security:
+
+```typescript
+const { 
+  'content-type': _, 
+  'accept-encoding': __, 
+  ...restHeaders 
+} = headers;
+```
+
+### Trusted Fallback URLs
+
+Only use trusted registries as fallback sources:
+
+```typescript
+const ALLOWED_FALLBACKS = [
+  'https://components.example.com/',
+  'https://staging-components.example.com/'
+];
+
+if (!ALLOWED_FALLBACKS.includes(fallbackUrl)) {
+  throw new Error('Untrusted fallback registry');
+}
+```
+
+## Performance Impact
+
+Fallback requests add latency when components are missing:
+
+- **Cache Miss**: Primary lookup + fallback lookup
+- **Network Latency**: Additional request to fallback registry
+- **Parsing Overhead**: Response parsing and validation
+
+Optimize by:
+
+1. Publishing components to the primary registry
+2. Using CDN for fallback registries
+3. Implementing request timeouts
+4. Caching fallback responses
+
+## Programmatic Usage
+
+Use fallback registry programmatically:
+
+```typescript
+import { cli } from 'oc';
+
+cli.dev(
+  {
+    dirPath: './components',
+    port: 3030,
+    baseUrl: 'http://localhost:3030/',
+    fallbackRegistryUrl: 'https://components.example.com/',
+    logger: myLogger
+  },
+  (err, registry) => {
+    if (err) {
+      console.error('Failed to start:', err);
+      return;
+    }
+    console.log('Dev server with fallback started');
+  }
+);
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Registry Configuration" icon="server" href="/registry/configuration">
+    Full registry configuration options
+  </Card>
+  <Card title="Storage Adapters" icon="database" href="/registry/storage-adapters">
+    Configure component storage
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/deployment/production">
+    Deploy registries to production
+  </Card>
+  <Card title="Registry Setup" icon="server" href="/registry/setup">
+    Set up your registry
+  </Card>
+</CardGroup>

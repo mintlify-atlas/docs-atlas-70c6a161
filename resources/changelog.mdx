@@ -1,0 +1,173 @@
+---
+title: Changelog
+description: Release history and version updates for OpenComponents
+---
+
+This page provides a summary of recent OpenComponents releases. For the complete changelog, see the [GitHub repository](https://github.com/opencomponents/oc/blob/master/CHANGELOG.md).
+
+## Recent Releases
+
+### v0.50.44 (Latest)
+
+- **Fix:** Fallback registry handling improvements [#1468](https://github.com/opencomponents/oc/pull/1468)
+
+### v0.50.43
+
+- **Fix:** Better error handling for fallback registry calls [#1467](https://github.com/opencomponents/oc/pull/1467)
+
+### v0.50.42
+
+- **Feature:** Added `component-published` event [#1466](https://github.com/opencomponents/oc/pull/1466)
+
+### v0.50.41
+
+- **Feature:** Pass imports on preview [#1462](https://github.com/opencomponents/oc/pull/1462)
+
+### v0.50.40
+
+- **Feature:** Added no robots option [#1461](https://github.com/opencomponents/oc/pull/1461)
+
+### v0.50.39
+
+- **Feature:** Pass error instance in error handlers [#1460](https://github.com/opencomponents/oc/pull/1460)
+
+### v0.50.38
+
+- **Feature:** Added importmap support in `oc.json` for `oc dev` [#1459](https://github.com/opencomponents/oc/pull/1459)
+
+### v0.50.37
+
+- **Feature:** Client now supports AbortSignal for fetch requests [#1457](https://github.com/opencomponents/oc/pull/1457)
+
+### v0.50.36
+
+- **Feature:** Add environment variables to `process.env` [#1456](https://github.com/opencomponents/oc/pull/1456)
+- **Fix:** Corrected response time calculations (removed ms to μs conversion) [#1455](https://github.com/opencomponents/oc/pull/1455)
+
+## Major Updates
+
+### v0.50.0 - Breaking Changes
+
+**Switch Compile Client Default to True** [#1396](https://github.com/opencomponents/oc/pull/1396)
+
+- Client compilation now enabled by default
+- Improved performance for browser-side rendering
+- See [Migration Guide](/resources/migration-guide#v0500---compile-client-default-changed) for upgrade instructions
+
+**Other features:**
+- Stream support [#1395](https://github.com/opencomponents/oc/pull/1395)
+- Minimum OC version checker for templates [#1394](https://github.com/opencomponents/oc/pull/1394)
+
+### v0.50.15 - Express 5 Migration
+
+- **Breaking:** Migrated to Express 5 [#1421](https://github.com/opencomponents/oc/pull/1421)
+- **Security:** Updated cross-spawn and undici [#1387](https://github.com/opencomponents/oc/pull/1387), [#1389](https://github.com/opencomponents/oc/pull/1389)
+- **Fix:** Corrected livereload timing [#1419](https://github.com/opencomponents/oc/pull/1419)
+- **Feature:** Preview works without discovery [#1418](https://github.com/opencomponents/oc/pull/1418)
+
+### v0.50.12 - UI Redesign
+
+- **Feature:** Moved to JSX and restyled UI [#1415](https://github.com/opencomponents/oc/pull/1415)
+- **Fix:** Improved error messages on publish [#1413](https://github.com/opencomponents/oc/pull/1413)
+- **Docs:** Better documentation of options [#1412](https://github.com/opencomponents/oc/pull/1412)
+
+### v0.50.8 - ESM Template Support
+
+- **Feature:** Added ESM template support [#1407](https://github.com/opencomponents/oc/pull/1407)
+
+### v0.49.0 - Node.js Support Update
+
+- **Breaking:** Dropped Node.js 8 and 10 support [#1203](https://github.com/opencomponents/oc/pull/1203)
+- **Breaking:** Updated oc-client-browser to 1.5.3 [#1207](https://github.com/opencomponents/oc/pull/1207)
+- **Feature:** Added route for dependencies [#1201](https://github.com/opencomponents/oc/pull/1201)
+- **Feature:** File watching with chokidar [#1202](https://github.com/opencomponents/oc/pull/1202)
+
+## Key Features by Version
+
+### Developer Experience
+
+- **v0.50.33:** UI revamp + preview server improvements [#1447](https://github.com/opencomponents/oc/pull/1447)
+- **v0.50.28:** Added `validate` command [#1440](https://github.com/opencomponents/oc/pull/1440)
+- **v0.50.14:** Infinite scrolling for history [#1417](https://github.com/opencomponents/oc/pull/1417)
+- **v0.50.13:** History endpoint with lazy loading [#1416](https://github.com/opencomponents/oc/pull/1416)
+- **v0.49.52:** Moved to Biome for linting [#1364](https://github.com/opencomponents/oc/pull/1364)
+- **v0.49.51:** Show component sizes in UI [#1363](https://github.com/opencomponents/oc/pull/1363)
+
+### Security & Performance
+
+- **v0.49.59:** Replaced `got` with `undici` [#1377](https://github.com/opencomponents/oc/pull/1377)
+- **v0.49.59:** Removed lodash dependency [#1376](https://github.com/opencomponents/oc/pull/1376)
+- **v0.49.58:** Compressed compiled client [#1375](https://github.com/opencomponents/oc/pull/1375)
+- **v0.49.46:** Banned eval from components [#1357](https://github.com/opencomponents/oc/pull/1357)
+
+### Component Features
+
+- **v0.50.28:** Added `setCookie` to component context [#1438](https://github.com/opencomponents/oc/pull/1438)
+- **v0.50.28:** Routes option in `oc.json` [#1442](https://github.com/opencomponents/oc/pull/1442)
+- **v0.50.28:** Preload option for resources [#1441](https://github.com/opencomponents/oc/pull/1441)
+- **v0.50.7:** Added traceparent support [#1406](https://github.com/opencomponents/oc/pull/1406)
+- **v0.50.3:** Added crypto and URL globals [#1400](https://github.com/opencomponents/oc/pull/1400)
+- **v0.49.55:** Added AbortController to globals [#1369](https://github.com/opencomponents/oc/pull/1369)
+- **v0.49.36:** Actions endpoint support [#1346](https://github.com/opencomponents/oc/pull/1346)
+- **v0.49.27:** Global fetch support in components [#1336](https://github.com/opencomponents/oc/pull/1336)
+
+### Registry Features
+
+- **v0.50.26:** Fallback client option and dev section in `oc.json` [#1434](https://github.com/opencomponents/oc/pull/1434)
+- **v0.50.21:** Meta query for components [#1429](https://github.com/opencomponents/oc/pull/1429)
+- **v0.50.20:** Plugins with context [#1426](https://github.com/opencomponents/oc/pull/1426)
+- **v0.50.5:** Multiple login support [#1404](https://github.com/opencomponents/oc/pull/1404)
+- **v0.49.30:** Dry-run mode for CLI and registry [#1339](https://github.com/opencomponents/oc/pull/1339)
+
+## TypeScript Migration
+
+### v0.49.2 - TypeScript Refactoring
+
+Starting from v0.49.2, OpenComponents has been progressively migrated to TypeScript:
+
+- Full TypeScript support with strict mode
+- Better IDE integration and autocomplete
+- Type definitions for all public APIs
+- Improved code maintainability
+
+Key PRs:
+- [#1216](https://github.com/opencomponents/oc/pull/1216) - Initial TypeScript setup
+- [#1240](https://github.com/opencomponents/oc/pull/1240) - Refactored remaining files to TS
+- [#1238](https://github.com/opencomponents/oc/pull/1238) - Typed Registry and routes
+
+## Older Versions
+
+For versions prior to v0.49.0, see the [complete changelog on GitHub](https://github.com/opencomponents/oc/blob/master/CHANGELOG.md).
+
+### Notable Historical Releases
+
+- **v0.48.0:** Jade template compiler v7.0.0
+- **v0.47.0:** Header support for component retrieval
+- **v0.46.0:** Dropped Node.js 6 support
+- **v0.44.0:** ES6 template as default
+- **v0.43.0:** Empty response setter on context
+- **v0.42.26:** Author field and filtering
+
+## Upgrade Guides
+
+For detailed upgrade instructions between major versions:
+
+- [Migration Guide](/resources/migration-guide) - Step-by-step upgrade instructions
+- [Troubleshooting](/resources/troubleshooting) - Common issues and solutions
+
+## Stay Updated
+
+- **Watch releases:** [github.com/opencomponents/oc/releases](https://github.com/opencomponents/oc/releases)
+- **Subscribe to updates:** Star the repo and enable notifications
+- **Follow on npm:** [npmjs.com/package/oc](https://npmjs.com/package/oc)
+- **Join the chat:** [gitter.im/opentable/oc](https://gitter.im/opentable/oc)
+
+## Semantic Versioning
+
+OpenComponents follows [Semantic Versioning](https://semver.org/):
+
+- **Patch (0.50.x):** Bug fixes and minor improvements
+- **Minor (0.x.0):** New features (breaking changes during 0.x)
+- **Major (x.0.0):** Breaking changes (1.0.0 not yet released)
+
+Note: During 0.x releases, minor versions may include breaking changes. Always check the [migration guide](/resources/migration-guide) before upgrading.

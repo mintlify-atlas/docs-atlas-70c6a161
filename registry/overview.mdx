@@ -1,0 +1,160 @@
+---
+title: Registry Overview
+description: Introduction to the OpenComponents Registry server
+---
+
+The OpenComponents Registry is the core server that hosts, serves, and manages your components. It handles component publishing, storage, versioning, and delivery to consumers.
+
+## What is the Registry?
+
+The Registry is an HTTP server built on Express.js that:
+
+- **Hosts components**: Stores component packages and serves them via HTTP endpoints
+- **Manages versions**: Handles semantic versioning and version resolution
+- **Executes server-side logic**: Runs component data providers with context and parameters
+- **Delivers assets**: Serves static files, compiled templates, and client libraries
+- **Provides discovery**: Exposes APIs and UI for browsing available components
+
+## Architecture
+
+The Registry operates in two modes:
+
+### Remote Mode (Production)
+
+In remote mode, the Registry serves components from cloud storage:
+
+```
+Cloud Storage (S3/GCS/Azure)
+      ↓
+  Registry Server
+      ↓
+Consumers (Web Apps)
+```
+
+- Components are published to cloud storage
+- Registry polls storage for changes
+- Components are cached for performance
+- Multiple registry instances can run in parallel
+
+### Local Mode (Development)
+
+In local mode, the Registry serves components from the filesystem:
+
+```
+Local Directory
+      ↓
+  Registry Server
+      ↓
+ Local Browser
+```
+
+- Components are loaded from disk
+- Hot-reloading enabled by default
+- No publishing required
+- Fast development iteration
+
+## Core Features
+
+### Component Delivery
+
+The Registry provides multiple ways to consume components:
+
+- **Server-side rendering**: Execute data providers and return rendered HTML
+- **Client-side rendering**: Return component URLs and metadata for browser rendering
+- **Static assets**: Serve CSS, JavaScript, and other static files
+- **Preview mode**: View components with test parameters in a browser
+
+### Storage Adapters
+
+The Registry supports multiple storage backends:
+
+- Amazon S3
+- Google Cloud Storage
+- Azure Blob Storage
+- Custom adapters via the adapter interface
+
+See [Storage Adapters](/registry/storage-adapters) for details.
+
+### Authentication
+
+Protect component publishing with built-in or custom authentication:
+
+- Basic authentication (single user or multiple users)
+- Custom authentication modules
+- Pluggable authentication interface
+
+See [Authentication](/registry/authentication) for details.
+
+### Middleware & Events
+
+Extend Registry behavior with:
+
+- **Middleware**: Standard Express middleware for request handling
+- **Events**: Subscribe to lifecycle events (start, publish, error, etc.)
+- **Plugins**: Extend component functionality with reusable plugins
+
+See [Middleware](/registry/middleware) and [Events](/registry/events) for details.
+
+## Registry Endpoints
+
+The Registry exposes several HTTP endpoints:
+
+| Endpoint | Purpose |
+|----------|--------|
+| `GET /` | Discovery UI and API |
+| `GET /:component/:version` | Retrieve a component |
+| `PUT /:component/:version` | Publish a component |
+| `GET /:component/:version/~info` | Component metadata |
+| `GET /:component/:version/~preview` | Preview a component |
+| `GET /~registry/plugins` | Available plugins |
+| `GET /~registry/dependencies` | Available dependencies |
+
+All endpoints respect the configured `prefix` option.
+
+## Getting Started
+
+To create a Registry instance:
+
+```javascript
+const oc = require('oc');
+
+const registry = oc.registry({
+  baseUrl: 'http://localhost:3000/',
+  port: 3000,
+  storage: {
+    adapter: require('oc-s3-storage-adapter'),
+    options: {
+      bucket: 'my-components',
+      region: 'us-east-1',
+      componentsDir: 'components'
+    }
+  }
+});
+
+registry.start((err, app) => {
+  if (err) {
+    console.error('Registry failed to start:', err);
+    process.exit(1);
+  }
+  console.log('Registry started successfully');
+});
+```
+
+See [Setup](/registry/setup) for detailed installation and configuration instructions.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Setup" icon="rocket" href="/registry/setup">
+    Install and configure your Registry
+  </Card>
+  <Card title="Configuration" icon="gear" href="/registry/configuration">
+    Explore all configuration options
+  </Card>
+  <Card title="Storage Adapters" icon="database" href="/registry/storage-adapters">
+    Configure cloud storage backends
+  </Card>
+  <Card title="Authentication" icon="lock" href="/registry/authentication">
+    Secure component publishing
+  </Card>
+</CardGroup>

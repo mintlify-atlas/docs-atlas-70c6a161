@@ -1,0 +1,223 @@
+---
+title: oc package
+description: Create a packaged component ready for publishing
+---
+
+The `package` command builds and packages a component, preparing it for publishing to a registry. It compiles templates, bundles assets, and creates a `_package` directory with the production-ready component.
+
+## Usage
+
+```bash
+oc package <componentPath> [options]
+```
+
+## Arguments
+
+### `componentPath` (required)
+
+The path to the component directory to package.
+
+- Must contain a valid `package.json` with OpenComponents metadata
+- Can be a relative or absolute path
+
+## Options
+
+### `--compress`
+
+Create a compressed `.tar.gz` file of the packaged component.
+
+- **Type:** Boolean
+- **Default:** `false`
+- **Example:** `--compress`
+
+When enabled, creates a `package.tar.gz` file in the component directory.
+
+## Examples
+
+### Basic packaging
+
+```bash
+oc package my-component/
+```
+
+Packages the component and creates a `_package` directory inside `my-component/`.
+
+### Package with compression
+
+```bash
+oc package my-component/ --compress
+```
+
+Packages the component and creates both:
+- `my-component/_package/` - Uncompressed package directory
+- `my-component/package.tar.gz` - Compressed archive
+
+### Package from different directory
+
+```bash
+oc package ../components/header/
+```
+
+## Output
+
+### Successful packaging
+
+```bash
+$ oc package my-component/
+
+Packaging "/path/to/my-component/_package"...
+✓ Packaged at /path/to/my-component/_package
+```
+
+### With compression
+
+```bash
+$ oc package my-component/ --compress
+
+Packaging "/path/to/my-component/_package"...
+✓ Packaged at /path/to/my-component/_package
+Compressing to "/path/to/my-component/package.tar.gz"...
+✓ Compressed at /path/to/my-component/package.tar.gz
+```
+
+## Package Structure
+
+The `_package` directory contains:
+
+```
+_package/
+├── package.json          # Component metadata
+├── server.js            # Compiled server-side code
+├── template.js          # Compiled template
+├── static/              # Static assets
+│   ├── css/
+│   ├── js/
+│   └── images/
+└── src/                 # Source maps (if applicable)
+```
+
+### package.json
+
+The packaged `package.json` includes:
+
+```json
+{
+  "name": "my-component",
+  "version": "1.0.0",
+  "oc": {
+    "files": {
+      "template": {
+        "type": "oc-template-es6",
+        "src": "template.js",
+        "hashKey": "abc123"
+      },
+      "data": "server.js",
+      "static": ["static/"]
+    },
+    "parameters": {},
+    "dependencies": {}
+  }
+}
+```
+
+## What Happens During Packaging
+
+1. **Dependency resolution** - Installs and validates component dependencies
+2. **Template compilation** - Compiles the template using the specified template engine
+3. **Server code bundling** - Bundles server-side JavaScript
+4. **Static asset processing** - Copies and processes static files
+5. **Metadata generation** - Creates package.json with file hashes and metadata
+6. **Validation** - Ensures the package meets registry requirements
+
+## Dependencies
+
+The package command automatically:
+
+- Installs npm dependencies listed in `package.json`
+- Validates that all required dependencies are present
+- Bundles dependencies that should be included with the component
+
+## Production Optimization
+
+Packaging in production mode includes:
+
+- Minification of JavaScript and CSS
+- Template compilation and optimization
+- Source map generation
+- Asset hash generation for cache busting
+
+## Error Handling
+
+### Invalid component
+
+```bash
+Error: package.json not found in component directory
+```
+
+Make sure you're in a valid component directory.
+
+### Compilation errors
+
+```bash
+Error: Failed to package component
+Template compilation failed: Unexpected token
+```
+
+Fix syntax errors in your component files.
+
+### Missing dependencies
+
+```bash
+Error: Cannot find module 'lodash'
+```
+
+Run `npm install` in the component directory.
+
+### Template type not installed
+
+```bash
+Error: Template type "oc-template-es6" not found
+```
+
+Install the required template compiler:
+
+```bash
+npm install -g oc-template-es6-compiler
+```
+
+## Skip Packaging
+
+When using the [publish](/cli/publish) command, you can skip the packaging step if the component is already packaged:
+
+```bash
+oc publish my-component/ --skipPackage
+```
+
+This is useful for:
+- Testing the publish process
+- Publishing a previously packaged component
+- CI/CD pipelines where packaging is done separately
+
+## Gitignore Recommendation
+
+Add these entries to your `.gitignore`:
+
+```
+_package/
+package.tar.gz
+```
+
+Packaged components should be generated during the build process, not committed to source control.
+
+## Performance Tips
+
+1. **Use npm ci** in CI/CD environments for faster, reproducible dependency installation
+2. **Cache node_modules** between builds to speed up packaging
+3. **Pre-install template compilers** globally to avoid repeated installations
+
+## Related Commands
+
+- [**publish**](/cli/publish) - Publish a packaged component to a registry
+- [**validate**](/cli/validate) - Validate a component without publishing
+- [**dev**](/cli/dev) - Package automatically during development
+- [**clean**](/cli/clean) - Remove package directories and node_modules
