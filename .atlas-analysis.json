@@ -1,0 +1,165 @@
+{
+  "projectType": "framework",
+  "projectName": "OpenComponents",
+  "projectDescription": "A framework for developing and distributing serverless micro-frontend components",
+  "theme": "aspen",
+  "primaryColor": "#E74C3C",
+  "lightColor": "#EC7063",
+  "darkColor": "#C0392B",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/components",
+              "concepts/registry",
+              "concepts/templates",
+              "concepts/plugins"
+            ]
+          },
+          {
+            "group": "Component Development",
+            "pages": [
+              "components/creating-components",
+              "components/component-structure",
+              "components/templates",
+              "components/parameters",
+              "components/data-providers",
+              "components/static-assets",
+              "components/testing"
+            ]
+          },
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/init",
+              "cli/dev",
+              "cli/package",
+              "cli/publish",
+              "cli/preview",
+              "cli/registry",
+              "cli/mock",
+              "cli/clean",
+              "cli/validate"
+            ]
+          },
+          {
+            "group": "Registry",
+            "pages": [
+              "registry/overview",
+              "registry/setup",
+              "registry/configuration",
+              "registry/authentication",
+              "registry/storage-adapters",
+              "registry/middleware",
+              "registry/events"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/plugins",
+              "advanced/custom-templates",
+              "advanced/programmatic-api",
+              "advanced/nested-components",
+              "advanced/fallback-registry",
+              "advanced/hot-reloading"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/overview",
+              "deployment/production",
+              "deployment/aws",
+              "deployment/docker"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "resources/migration-guide",
+              "resources/troubleshooting",
+              "resources/contributing",
+              "resources/changelog"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Client",
+            "pages": [
+              "api/client/overview",
+              "api/client/methods"
+            ]
+          },
+          {
+            "group": "Registry",
+            "pages": [
+              "api/registry/overview",
+              "api/registry/options",
+              "api/registry/methods",
+              "api/registry/events"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types/component",
+              "api/types/config",
+              "api/types/plugin",
+              "api/types/template"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Component-based micro-frontends architecture",
+    "CLI for component development and deployment",
+    "Registry server for component hosting and delivery",
+    "Multiple template engines (Handlebars, ES6, Jade)",
+    "Plugin system for extensibility",
+    "Storage adapter flexibility (S3, local, custom)",
+    "Hot reloading for development",
+    "Server-side and client-side rendering",
+    "Component versioning and fallback support",
+    "Authentication and authorization"
+  ],
+  "publicApiSurface": [
+    "Client",
+    "Registry",
+    "cli",
+    "Plugin",
+    "PluginContext",
+    "RegistryOptions",
+    "oc init",
+    "oc dev",
+    "oc package",
+    "oc publish",
+    "oc preview",
+    "oc registry add",
+    "oc registry ls",
+    "oc registry remove",
+    "oc mock",
+    "oc clean",
+    "oc validate"
+  ]
+}
